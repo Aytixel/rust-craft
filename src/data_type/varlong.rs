@@ -12,6 +12,10 @@ impl FromVarLong for Vec<u8> {
         let mut current_byte_position = 0;
         let mut current_byte;
 
+        if self.len() == 0 {
+            return Err("No data to parse VarLong");
+        }
+
         loop {
             current_byte = self[current_byte_position];
             current_byte_position += 1;
@@ -89,6 +93,8 @@ mod tests {
                 -9223372036854775808,
             ),
         ];
+
+        assert_eq!(vec![].from_varlong(), Err("No data to parse VarLong"));
 
         for (mut input, output) in test_data {
             assert_eq!(input.from_varlong(), Ok(output));

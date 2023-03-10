@@ -12,6 +12,10 @@ impl FromVarInt for Vec<u8> {
         let mut current_byte_position = 0;
         let mut current_byte;
 
+        if self.len() == 0 {
+            return Err("No data to parse VarInt");
+        }
+
         loop {
             current_byte = self[current_byte_position];
             current_byte_position += 1;
@@ -77,6 +81,8 @@ mod tests {
             (vec![0xff, 0xff, 0xff, 0xff, 0x0f], -1),
             (vec![0x80, 0x80, 0x80, 0x80, 0x08], -2147483648),
         ];
+
+        assert_eq!(vec![].from_varint(), Err("No data to parse VarInt"));
 
         for (mut input, output) in test_data {
             assert_eq!(input.from_varint(), Ok(output));
