@@ -1,8 +1,10 @@
+pub mod handshake;
+
 use flate2::write::ZlibDecoder;
 
 use super::varint::FromVarInt;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Packet {
     pub id: i32,
     pub data: Vec<u8>,
