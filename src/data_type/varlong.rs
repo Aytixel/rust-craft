@@ -1,7 +1,7 @@
 const SEGMENT_BITS: u8 = 0x7F;
 const CONTINUE_BIT: u8 = 0x80;
 
-trait FromVarLong {
+pub trait FromVarLong {
     fn from_varlong(&mut self) -> Result<i64, &'static str>;
 }
 
@@ -34,7 +34,7 @@ impl FromVarLong for Vec<u8> {
     }
 }
 
-trait ToVarLong {
+pub trait ToVarLong {
     fn to_varlong(self) -> Vec<u8>;
 }
 

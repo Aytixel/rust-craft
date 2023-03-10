@@ -1,7 +1,7 @@
 const SEGMENT_BITS: u8 = 0x7F;
 const CONTINUE_BIT: u8 = 0x80;
 
-trait FromVarInt {
+pub trait FromVarInt {
     fn from_varint(&mut self) -> Result<i32, &'static str>;
 }
 
@@ -34,7 +34,7 @@ impl FromVarInt for Vec<u8> {
     }
 }
 
-trait ToVarInt {
+pub trait ToVarInt {
     fn to_varint(self) -> Vec<u8>;
 }
 
