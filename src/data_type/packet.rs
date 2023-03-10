@@ -4,8 +4,8 @@ use super::varint::FromVarInt;
 
 #[derive(Debug)]
 pub struct Packet {
-    id: i32,
-    data: Vec<u8>,
+    pub id: i32,
+    pub data: Vec<u8>,
 }
 
 impl Packet {
