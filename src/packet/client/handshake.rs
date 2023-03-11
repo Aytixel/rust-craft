@@ -1,6 +1,4 @@
-use crate::data_type::{string::FromString, varint::FromVarInt};
-
-use super::Packet;
+use crate::data_type::{FromString, FromVarInt, Packet};
 
 #[derive(Debug)]
 pub struct HandshakePacket {

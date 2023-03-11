@@ -1,9 +1,10 @@
 use std::io::{self, ErrorKind, Read};
 use std::net::{Shutdown, SocketAddr, TcpStream};
 
-use log::debug;
+use log::{debug, error};
 
-use crate::data_type::packet::Packet;
+use crate::data_type::Packet;
+use crate::packet::client::HandshakePacket;
 
 enum ClientState {
     Handshake,
@@ -33,7 +34,7 @@ impl Client {
             socket_addr,
             state: ClientState::Handshake,
             buffer: vec![],
-            compressed: true,
+            compressed: false,
         })
     }
 
@@ -49,18 +50,42 @@ impl Client {
 
         match Packet::try_from(&mut self.buffer, self.compressed) {
             Ok(packet) => {
-                debug!("{:?}", packet);
-
-                match self.state {
-                    ClientState::Handshake => todo!(),
-                    ClientState::Status => todo!(),
-                    ClientState::Login => todo!(),
+                if let Err(e) = match self.state {
+                    ClientState::Handshake => self.handshake(&packet),
+                    ClientState::Status => self.status(&packet),
+                    ClientState::Login => self.login(&packet),
                     ClientState::Play => todo!(),
+                } {
+                    error!("{e:?}");
                 }
             }
-            Err(e) => debug!("{:?}", e),
+            Err(_) => {}
         }
 
+        Ok(())
+    }
+
+    fn handshake(&mut self, packet: &Packet) -> Result<(), &'static str> {
+        if packet.id == 0 {
+            let handshake_packet = HandshakePacket::try_from(packet.clone())?;
+
+            debug!("{:?}", handshake_packet);
+
+            if (handshake_packet.next_state == 1) {
+                self.state = ClientState::Status;
+            } else {
+                self.state = ClientState::Login;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn status(&self, packet: &Packet) -> Result<(), &'static str> {
+        Ok(())
+    }
+
+    fn login(&self, packet: &Packet) -> Result<(), &'static str> {
         Ok(())
     }
 

@@ -1,5 +1,3 @@
-pub mod handshake;
-
 use flate2::write::ZlibDecoder;
 
 use super::varint::FromVarInt;
