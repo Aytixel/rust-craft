@@ -1,4 +1,4 @@
-use crate::data_type::{FromString, FromVarInt, Packet};
+use crate::data_type::{FromShort, FromString, FromVarInt, Packet};
 
 #[derive(Debug)]
 pub struct HandshakePacket {
@@ -15,7 +15,7 @@ impl TryFrom<Packet> for HandshakePacket {
         Ok(HandshakePacket {
             protocol_version: packet.data.from_varint()?,
             hostname: packet.data.from_packet_string()?,
-            port: u16::from_be_bytes([packet.data.remove(0), packet.data.remove(0)]),
+            port: packet.data.from_short()? as u16,
             next_state: packet.data.from_varint()?,
         })
     }
