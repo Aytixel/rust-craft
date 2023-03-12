@@ -17,6 +17,10 @@ impl FromVarLong for Vec<u8> {
         }
 
         loop {
+            if self.len() == current_byte_position {
+                return Err("Not enough data to parse VarLong");
+            }
+
             current_byte = self[current_byte_position];
             current_byte_position += 1;
             value |= (current_byte as i64 & SEGMENT_BITS as i64) << position;
@@ -95,6 +99,10 @@ mod tests {
         ];
 
         assert_eq!(vec![].from_varlong(), Err("No data to parse VarLong"));
+        assert_eq!(
+            vec![0x80, 0x80].from_varlong(),
+            Err("Not enough data to parse VarLong")
+        );
 
         for (mut input, output) in test_data {
             assert_eq!(input.from_varlong(), Ok(output));

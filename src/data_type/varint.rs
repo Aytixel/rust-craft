@@ -17,6 +17,10 @@ impl FromVarInt for Vec<u8> {
         }
 
         loop {
+            if self.len() == current_byte_position {
+                return Err("Not enough data to parse VarInt");
+            }
+
             current_byte = self[current_byte_position];
             current_byte_position += 1;
             value |= (current_byte as i32 & SEGMENT_BITS as i32) << position;
@@ -83,6 +87,10 @@ mod tests {
         ];
 
         assert_eq!(vec![].from_varint(), Err("No data to parse VarInt"));
+        assert_eq!(
+            vec![0x80, 0x80].from_varint(),
+            Err("Not enough data to parse VarInt")
+        );
 
         for (mut input, output) in test_data {
             assert_eq!(input.from_varint(), Ok(output));
