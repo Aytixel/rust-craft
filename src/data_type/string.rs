@@ -8,6 +8,10 @@ impl FromString for Vec<u8> {
     fn from_packet_string(&mut self) -> Result<String, &'static str> {
         let length = self.from_varint()?;
 
+        if self.len() < length as usize {
+            return Err("Not enough data to parse String");
+        }
+
         Ok(String::from_utf8_lossy(self.drain(0..length as usize).as_slice()).to_string())
     }
 }
@@ -31,6 +35,10 @@ mod tests {
 
     #[test]
     fn from_packet_string() {
+        assert_eq!(
+            vec![9, 0, 0, 0, 0, 0, 1, 1, 2].from_packet_string(),
+            Err("Not enough data to parse String")
+        );
         assert_eq!(
             vec![9, 0, 0, 0, 0, 0, 1, 1, 2, 10]
                 .from_packet_string()
