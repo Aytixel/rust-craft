@@ -1,6 +1,8 @@
-use flate2::write::ZlibDecoder;
+use std::io::{self, Write};
 
-use super::varint::FromVarInt;
+use flate2::{write::ZlibDecoder, write::ZlibEncoder, Compression};
+
+use super::{varint::FromVarInt, ToVarInt};
 
 #[derive(Debug, Clone)]
 pub struct Packet {
@@ -53,5 +55,31 @@ impl Packet {
         data.drain(0..packet_length);
 
         Ok(packet)
+    }
+
+    pub fn try_into(mut self, compressed: bool) -> io::Result<Vec<u8>> {
+        let mut buffer = vec![];
+
+        buffer.append(&mut self.id.to_varint());
+        buffer.append(&mut self.data);
+
+        let mut result_buffer = vec![];
+
+        if compressed {
+            let data_length = buffer.len();
+            let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+
+            encoder.write_all(&buffer)?;
+            buffer = encoder.finish()?;
+
+            result_buffer.append(&mut (buffer.len() as i32).to_varint());
+            result_buffer.append(&mut (data_length as i32).to_varint());
+            result_buffer.append(&mut buffer);
+        } else {
+            result_buffer.append(&mut (buffer.len() as i32).to_varint());
+            result_buffer.append(&mut buffer);
+        }
+
+        Ok(result_buffer)
     }
 }
