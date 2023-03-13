@@ -1,12 +1,15 @@
-use std::io::{self, ErrorKind, Read};
+use std::io::{self, ErrorKind, Read, Write};
 use std::net::{Shutdown, SocketAddr, TcpStream};
 
-use log::{debug, error};
+use log::error;
+use num::FromPrimitive;
 
 use crate::data_type::Packet;
-use crate::packet::client::HandshakePacket;
+use crate::packet::handshake::HandshakePacket;
+use crate::packet::status::{PingPacket, StatusPacket};
+use crate::packet::{HandshakePacketId, StatusPacketId};
 
-enum ClientState {
+pub enum ClientState {
     Handshake,
     Status,
     Login,
@@ -16,7 +19,7 @@ enum ClientState {
 pub struct Client {
     socket: TcpStream,
     pub socket_addr: SocketAddr,
-    state: ClientState,
+    pub state: ClientState,
     buffer: Vec<u8>,
     compressed: bool,
 }
@@ -50,13 +53,20 @@ impl Client {
 
         match Packet::try_from(&mut self.buffer, self.compressed) {
             Ok(packet) => {
-                if let Err(e) = match self.state {
+                let response_packet = match self.state {
                     ClientState::Handshake => self.handshake(&packet),
                     ClientState::Status => self.status(&packet),
                     ClientState::Login => self.login(&packet),
                     ClientState::Play => todo!(),
-                } {
-                    error!("{e:?}");
+                };
+
+                match response_packet {
+                    Ok(Some(packet)) => {
+                        self.socket.write_all(&packet.try_into(self.compressed)?)?;
+                        self.socket.flush()?;
+                    }
+                    Ok(None) => {}
+                    Err(e) => error!("{e:?}"),
                 }
             }
             Err(_) => {}
@@ -65,28 +75,21 @@ impl Client {
         Ok(())
     }
 
-    fn handshake(&mut self, packet: &Packet) -> Result<(), &'static str> {
-        if packet.id == 0 {
-            let handshake_packet = HandshakePacket::try_from(packet.clone())?;
-
-            debug!("{:?}", handshake_packet);
-
-            if (handshake_packet.next_state == 1) {
-                self.state = ClientState::Status;
-            } else {
-                self.state = ClientState::Login;
-            }
+    fn handshake(&mut self, packet: &Packet) -> Result<Option<Packet>, &'static str> {
+        match FromPrimitive::from_i32(packet.id).ok_or_else(|| "Unknown packet id")? {
+            HandshakePacketId::Handshake => HandshakePacket::handle(&mut self.state, packet),
         }
-
-        Ok(())
     }
 
-    fn status(&self, packet: &Packet) -> Result<(), &'static str> {
-        Ok(())
+    fn status(&self, packet: &Packet) -> Result<Option<Packet>, &'static str> {
+        match FromPrimitive::from_i32(packet.id).ok_or_else(|| "Unknown packet id")? {
+            StatusPacketId::Status => StatusPacket::handle(packet),
+            StatusPacketId::Ping => PingPacket::handle(packet),
+        }
     }
 
-    fn login(&self, packet: &Packet) -> Result<(), &'static str> {
-        Ok(())
+    fn login(&self, _packet: &Packet) -> Result<Option<Packet>, &'static str> {
+        Ok(None)
     }
 
     pub fn disconnect(&self) -> io::Result<()> {
