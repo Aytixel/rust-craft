@@ -7,7 +7,7 @@ use num::FromPrimitive;
 use crate::data_type::Packet;
 use crate::packet::handshake::HandshakePacket;
 use crate::packet::status::{PingPacket, StatusPacket};
-use crate::packet::{HandshakePacketId, StatusPacketId};
+use crate::packet::{ServerBoundHandshakePacketId, ServerBoundStatusPacketId};
 
 pub enum ClientState {
     Handshake,
@@ -77,14 +77,16 @@ impl Client {
 
     fn handshake(&mut self, packet: &Packet) -> Result<Option<Packet>, &'static str> {
         match FromPrimitive::from_i32(packet.id).ok_or_else(|| "Unknown packet id")? {
-            HandshakePacketId::Handshake => HandshakePacket::handle(&mut self.state, packet),
+            ServerBoundHandshakePacketId::Handshake => {
+                HandshakePacket::handle(&mut self.state, packet)
+            }
         }
     }
 
     fn status(&self, packet: &Packet) -> Result<Option<Packet>, &'static str> {
         match FromPrimitive::from_i32(packet.id).ok_or_else(|| "Unknown packet id")? {
-            StatusPacketId::Status => StatusPacket::handle(packet),
-            StatusPacketId::Ping => PingPacket::handle(packet),
+            ServerBoundStatusPacketId::StatusRequest => StatusPacket::handle(),
+            ServerBoundStatusPacketId::PingRequest => PingPacket::handle(packet),
         }
     }
 

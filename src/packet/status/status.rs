@@ -2,7 +2,7 @@ use log::debug;
 use serde_json::json;
 
 use crate::data_type::{Packet, ToString};
-use crate::packet::StatusPacketId;
+use crate::packet::ClientBoundStatusPacketId;
 
 #[derive(Debug)]
 pub struct StatusPacket;
@@ -10,13 +10,13 @@ pub struct StatusPacket;
 impl StatusPacket {
     pub fn new(json_response: String) -> Packet {
         Packet {
-            id: StatusPacketId::Status as i32,
+            id: ClientBoundStatusPacketId::StatusResponse as i32,
             data: json_response.to_packet_string(),
         }
     }
 
-    pub fn handle(packet: &Packet) -> Result<Option<Packet>, &'static str> {
-        debug!("{:?}", StatusPacket::try_from(packet.clone())?);
+    pub fn handle() -> Result<Option<Packet>, &'static str> {
+        debug!("{:?}", StatusPacket);
 
         Ok(Some(
             StatusPacket::new(
@@ -40,17 +40,5 @@ impl StatusPacket {
             )
             .into(),
         ))
-    }
-}
-
-impl TryFrom<Packet> for StatusPacket {
-    type Error = &'static str;
-
-    fn try_from(packet: Packet) -> Result<Self, Self::Error> {
-        if packet.id != StatusPacketId::Status as i32 {
-            return Err("Wrong packet id");
-        }
-
-        Ok(StatusPacket)
     }
 }

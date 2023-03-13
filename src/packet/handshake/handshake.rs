@@ -2,7 +2,6 @@ use log::debug;
 
 use crate::client::ClientState;
 use crate::data_type::{FromShort, FromString, FromVarInt, Packet};
-use crate::packet::HandshakePacketId;
 
 #[derive(Debug)]
 pub struct HandshakePacket {
@@ -35,10 +34,6 @@ impl TryFrom<Packet> for HandshakePacket {
     type Error = &'static str;
 
     fn try_from(mut packet: Packet) -> Result<Self, Self::Error> {
-        if packet.id != HandshakePacketId::Handshake as i32 {
-            return Err("Wrong packet id");
-        }
-
         Ok(HandshakePacket {
             protocol_version: packet.data.from_varint()?,
             hostname: packet.data.from_packet_string()?,
