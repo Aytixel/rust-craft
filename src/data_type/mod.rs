@@ -4,9 +4,11 @@ mod long;
 mod packet;
 mod short;
 mod string;
+mod uuid;
 mod varint;
 mod varlong;
 
+pub use self::uuid::*;
 pub use byte::*;
 pub use int::*;
 pub use long::*;
