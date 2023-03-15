@@ -6,37 +6,37 @@ pub mod play;
 pub mod status;
 
 #[derive(FromPrimitive)]
-pub enum ServerBoundHandshakePacketId {
+pub enum ServerHandshakePacketId {
     Handshake,
 }
 
 #[derive(FromPrimitive)]
-pub enum ServerBoundStatusPacketId {
-    StatusRequest,
-    PingRequest,
+pub enum ServerStatusPacketId {
+    Status,
+    Ping,
 }
 
-pub enum ClientBoundStatusPacketId {
-    StatusResponse,
+pub enum ClientStatusPacketId {
+    Status,
 }
 
 #[derive(FromPrimitive)]
-pub enum ServerBoundLoginPacketId {
+pub enum ServerLoginPacketId {
     LoginStart,
-    EncryptionResponse,
-    LoginPluginResponse,
+    Encryption,
+    LoginPlugin,
 }
 
-pub enum ClientBoundLoginPacketId {
+pub enum ClientLoginPacketId {
     Disconnect,
-    EncryptionRequest,
+    Encryption,
     LoginSuccess,
     SetCompression,
-    LoginPluginRequest,
+    LoginPlugin,
 }
 
 #[derive(FromPrimitive)]
-pub enum ServerBoundPlayPacketId {
+pub enum ServerPlayPacketId {
     ConfirmTeleportation,
     QueryBlockEntityTag,
     ChangeDifficulty,
@@ -45,7 +45,7 @@ pub enum ServerBoundPlayPacketId {
     ChatMessage,
     ClientCommand,
     ClientInformation,
-    CommandSuggestionsRequest,
+    CommandSuggestions,
     ClickContainerButton,
     ClickContainer,
     CloseContainer,
@@ -90,7 +90,7 @@ pub enum ServerBoundPlayPacketId {
     UseItem,
 }
 
-pub enum ClientBoundPlayPacketId {
+pub enum ClientPlayPacketId {
     SpawnEntity,
     SpawnExperienceOrb,
     SpawnPlayer,
@@ -104,7 +104,7 @@ pub enum ClientBoundPlayPacketId {
     BossBar,
     ChangeDifficulty,
     ClearTitles,
-    CommandSuggestionsResponse,
+    CommandSuggestions,
     Commands,
     CloseContainer,
     SetContainerContent,
@@ -189,7 +189,7 @@ pub enum ClientBoundPlayPacketId {
     StopSound,
     SystemChatMessage,
     SetTabListHeaderAndFooter,
-    TagQueryResponse,
+    TagQuery,
     PickupItem,
     TeleportEntity,
     UpdateAdvancements,

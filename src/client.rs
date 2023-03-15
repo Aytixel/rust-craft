@@ -1,13 +1,13 @@
 use std::io::{self, ErrorKind, Read, Write};
 use std::net::{Shutdown, SocketAddr, TcpStream};
 
-use log::{debug, error};
+use log::error;
 use num::FromPrimitive;
 
 use crate::data_type::Packet;
 use crate::packet::handshake::HandshakePacket;
 use crate::packet::status::{PingPacket, StatusPacket};
-use crate::packet::{ServerBoundHandshakePacketId, ServerBoundStatusPacketId};
+use crate::packet::{ServerHandshakePacketId, ServerStatusPacketId};
 
 pub enum ClientState {
     Handshake,
@@ -74,16 +74,14 @@ impl Client {
 
     fn handshake(&mut self, packet: &Packet) -> Result<Option<Packet>, &'static str> {
         match FromPrimitive::from_i32(packet.id).ok_or_else(|| "Unknown packet id")? {
-            ServerBoundHandshakePacketId::Handshake => {
-                HandshakePacket::handle(&mut self.state, packet)
-            }
+            ServerHandshakePacketId::Handshake => HandshakePacket::handle(&mut self.state, packet),
         }
     }
 
     fn status(&self, packet: &Packet) -> Result<Option<Packet>, &'static str> {
         match FromPrimitive::from_i32(packet.id).ok_or_else(|| "Unknown packet id")? {
-            ServerBoundStatusPacketId::StatusRequest => StatusPacket::handle(),
-            ServerBoundStatusPacketId::PingRequest => PingPacket::handle(packet),
+            ServerStatusPacketId::Status => StatusPacket::handle(),
+            ServerStatusPacketId::Ping => PingPacket::handle(packet),
         }
     }
 

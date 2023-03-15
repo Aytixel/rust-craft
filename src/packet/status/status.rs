@@ -2,7 +2,7 @@ use log::debug;
 use serde_json::json;
 
 use crate::data_type::{Packet, ToString};
-use crate::packet::ClientBoundStatusPacketId;
+use crate::packet::ClientStatusPacketId;
 
 #[derive(Debug)]
 pub struct StatusPacket;
@@ -10,7 +10,7 @@ pub struct StatusPacket;
 impl StatusPacket {
     pub fn new(json_response: String) -> Packet {
         Packet {
-            id: ClientBoundStatusPacketId::StatusResponse as i32,
+            id: ClientStatusPacketId::Status as i32,
             data: json_response.to_packet_string(),
         }
     }
