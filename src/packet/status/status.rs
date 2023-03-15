@@ -22,8 +22,8 @@ impl StatusPacket {
             StatusPacket::new(
                 json!({
                     "version": {
-                        "name": "1.19.3",
-                        "protocol": 761
+                        "name": "1.19.4",
+                        "protocol": 762
                     },
                     "players": {
                         "max": 0,
