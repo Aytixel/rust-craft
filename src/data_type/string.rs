@@ -29,6 +29,12 @@ impl ToString for String {
     }
 }
 
+impl ToString for &'static str {
+    fn to_packet_string(self) -> Vec<u8> {
+        self.to_string().to_packet_string()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
