@@ -1,3 +1,4 @@
+mod byte;
 mod int;
 mod long;
 mod packet;
@@ -6,6 +7,7 @@ mod string;
 mod varint;
 mod varlong;
 
+pub use byte::*;
 pub use int::*;
 pub use long::*;
 pub use packet::*;
