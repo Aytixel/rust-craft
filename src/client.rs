@@ -1,7 +1,7 @@
 use std::io::{self, ErrorKind, Read, Write};
 use std::net::{Shutdown, SocketAddr, TcpStream};
 
-use log::error;
+use log::{debug, error};
 use num::FromPrimitive;
 
 use crate::data_type::Packet;
@@ -51,25 +51,22 @@ impl Client {
 
         self.buffer.append(&mut buffer[0..length].to_vec());
 
-        match Packet::try_from(&mut self.buffer, self.compressed) {
-            Ok(packet) => {
-                let response_packet = match self.state {
-                    ClientState::Handshake => self.handshake(&packet),
-                    ClientState::Status => self.status(&packet),
-                    ClientState::Login => self.login(&packet),
-                    ClientState::Play => todo!(),
-                };
+        while let Ok(packet) = Packet::try_from(&mut self.buffer, self.compressed) {
+            let response_packet = match self.state {
+                ClientState::Handshake => self.handshake(&packet),
+                ClientState::Status => self.status(&packet),
+                ClientState::Login => self.login(&packet),
+                ClientState::Play => todo!(),
+            };
 
-                match response_packet {
-                    Ok(Some(packet)) => {
-                        self.socket.write_all(&packet.try_into(self.compressed)?)?;
-                        self.socket.flush()?;
-                    }
-                    Ok(None) => {}
-                    Err(e) => error!("{e:?}"),
+            match response_packet {
+                Ok(Some(packet)) => {
+                    self.socket.write_all(&packet.try_into(self.compressed)?)?;
+                    self.socket.flush()?;
                 }
+                Ok(None) => {}
+                Err(e) => error!("{e:?}"),
             }
-            Err(_) => {}
         }
 
         Ok(())
