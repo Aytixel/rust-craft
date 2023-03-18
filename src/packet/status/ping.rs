@@ -1,6 +1,9 @@
 use log::debug;
 
-use crate::data_type::{FromLong, Packet};
+use crate::{
+    client::Client,
+    data_type::{FromLong, Packet},
+};
 
 #[derive(Debug)]
 pub struct PingPacket {
@@ -8,10 +11,14 @@ pub struct PingPacket {
 }
 
 impl PingPacket {
-    pub fn handle(packet: &Packet) -> Result<Vec<Packet>, &'static str> {
+    pub fn handle(client: &mut Client, packet: &Packet) -> Result<(), &'static str> {
         debug!("{:?}", PingPacket::try_from(packet.clone())?);
 
-        Ok(vec![packet.clone()])
+        client
+            .send_packet(packet.clone())
+            .map_err(|_| "Error sending PingPacket")?;
+
+        Ok(())
     }
 }
 

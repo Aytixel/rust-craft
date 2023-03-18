@@ -1,6 +1,7 @@
 use log::debug;
 use serde_json::json;
 
+use crate::client::Client;
 use crate::data_type::{Packet, ToString};
 use crate::packet::ClientStatusPacketId;
 
@@ -15,28 +16,30 @@ impl StatusPacket {
         }
     }
 
-    pub fn handle() -> Result<Vec<Packet>, &'static str> {
+    pub fn handle(client: &mut Client) -> Result<(), &'static str> {
         debug!("{:?}", StatusPacket);
 
-        Ok(vec![StatusPacket::new(
-            json!({
-                "version": {
-                    "name": "1.19.4",
-                    "protocol": 762
-                },
-                "players": {
-                    "max": 0,
-                    "online": 0,
-                    "sample": []
-                },
-                "description": {
-                    "text": "RustCraft"
-                },
-                "favicon": "",
-                "enforcesSecureChat": true
-            })
-            .to_string(),
-        )
-        .into()])
+        client
+            .send_packet(StatusPacket::new(
+                json!({
+                    "version": {
+                        "name": "1.19.4",
+                        "protocol": 762
+                    },
+                    "players": {
+                        "max": 0,
+                        "online": 0,
+                        "sample": []
+                    },
+                    "description": {
+                        "text": "RustCraft"
+                    },
+                    "favicon": ""
+                })
+                .to_string(),
+            ))
+            .map_err(|_| "Error sending StatusPacket")?;
+
+        Ok(())
     }
 }

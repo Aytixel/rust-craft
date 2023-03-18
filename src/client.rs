@@ -2,15 +2,18 @@ use std::io::{self, ErrorKind, Read, Write};
 use std::net::{Shutdown, SocketAddr, TcpStream};
 use std::rc::Rc;
 
-use log::{debug, error};
+use log::error;
 use num::FromPrimitive;
+use uuid::Uuid;
 
 use crate::data_type::Packet;
 use crate::packet::handshake::HandshakePacket;
-use crate::packet::login::LoginStartPacket;
+use crate::packet::login::{EncryptionPacket, LoginStartPacket};
 use crate::packet::status::{PingPacket, StatusPacket};
 use crate::packet::{ServerHandshakePacketId, ServerLoginPacketId, ServerStatusPacketId};
 use crate::server::EncryptionData;
+
+pub const COMPRESSION_THRESHOLD: i32 = 256;
 
 pub enum ClientState {
     Handshake,
@@ -19,13 +22,20 @@ pub enum ClientState {
     Play,
 }
 
+#[derive(Default)]
+pub struct PlayerData {
+    pub username: String,
+    pub uuid: Uuid,
+}
+
 pub struct Client {
     socket: TcpStream,
     pub socket_addr: SocketAddr,
     pub state: ClientState,
     buffer: Vec<u8>,
-    compressed: bool,
-    encryption_data: Rc<EncryptionData>,
+    pub compressed: bool,
+    pub encryption_data: Rc<EncryptionData>,
+    pub player_data: Rc<PlayerData>,
 }
 
 impl Client {
@@ -47,6 +57,7 @@ impl Client {
             buffer: vec![],
             compressed: false,
             encryption_data,
+            player_data: Rc::new(PlayerData::default()),
         })
     }
 
@@ -61,46 +72,43 @@ impl Client {
         self.buffer.append(&mut buffer[..length].to_vec());
 
         while let Ok(packet) = Packet::try_from(&mut self.buffer, self.compressed) {
-            let response_packet = match self.state {
+            if let Err(e) = match self.state {
                 ClientState::Handshake => self.handshake(&packet),
                 ClientState::Status => self.status(&packet),
                 ClientState::Login => self.login(&packet),
                 ClientState::Play => todo!(),
-            };
-
-            match response_packet {
-                Ok(packet_vec) => {
-                    for packet in packet_vec {
-                        self.socket.write_all(&packet.try_into(self.compressed)?)?;
-                        self.socket.flush()?;
-                    }
-                }
-                Err(e) => error!("{e:?}"),
+            } {
+                error!("{e}");
             }
         }
 
         Ok(())
     }
 
-    fn handshake(&mut self, packet: &Packet) -> Result<Vec<Packet>, &'static str> {
+    pub fn send_packet(&mut self, packet: Packet) -> io::Result<()> {
+        self.socket.write_all(&packet.try_into(self.compressed)?)?;
+        self.socket.flush()?;
+
+        Ok(())
+    }
+
+    fn handshake(&mut self, packet: &Packet) -> Result<(), &'static str> {
         match FromPrimitive::from_i32(packet.id).ok_or_else(|| "Unknown packet id")? {
             ServerHandshakePacketId::Handshake => HandshakePacket::handle(&mut self.state, packet),
         }
     }
 
-    fn status(&self, packet: &Packet) -> Result<Vec<Packet>, &'static str> {
+    fn status(&mut self, packet: &Packet) -> Result<(), &'static str> {
         match FromPrimitive::from_i32(packet.id).ok_or_else(|| "Unknown packet id")? {
-            ServerStatusPacketId::Status => StatusPacket::handle(),
-            ServerStatusPacketId::Ping => PingPacket::handle(packet),
+            ServerStatusPacketId::Status => StatusPacket::handle(self),
+            ServerStatusPacketId::Ping => PingPacket::handle(self, packet),
         }
     }
 
-    fn login(&self, packet: &Packet) -> Result<Vec<Packet>, &'static str> {
+    fn login(&mut self, packet: &Packet) -> Result<(), &'static str> {
         match FromPrimitive::from_i32(packet.id).ok_or_else(|| "Unknown packet id")? {
-            ServerLoginPacketId::LoginStart => {
-                LoginStartPacket::handle(packet, self.encryption_data.clone())
-            }
-            ServerLoginPacketId::Encryption => todo!(),
+            ServerLoginPacketId::LoginStart => LoginStartPacket::handle(self, packet),
+            ServerLoginPacketId::Encryption => EncryptionPacket::handle(self, packet),
             ServerLoginPacketId::LoginPlugin => todo!(),
         }
     }

@@ -1,13 +1,9 @@
-use std::rc::Rc;
-
 use log::debug;
 use uuid::Uuid;
 
-use crate::{
-    data_type::{FromByte, FromString, FromUuid, Packet},
-    packet::login::EncryptionPacket,
-    server::EncryptionData,
-};
+use crate::client::Client;
+use crate::data_type::{FromByte, FromString, FromUuid, Packet};
+use crate::packet::login::EncryptionPacket;
 
 #[derive(Debug)]
 pub struct LoginStartPacket {
@@ -16,13 +12,14 @@ pub struct LoginStartPacket {
 }
 
 impl LoginStartPacket {
-    pub fn handle(
-        packet: &Packet,
-        encryption_data: Rc<EncryptionData>,
-    ) -> Result<Vec<Packet>, &'static str> {
+    pub fn handle(client: &mut Client, packet: &Packet) -> Result<(), &'static str> {
         debug!("{:?}", LoginStartPacket::try_from(packet.clone())?);
 
-        Ok(vec![EncryptionPacket::new(encryption_data)])
+        client
+            .send_packet(EncryptionPacket::new(client.encryption_data.clone()))
+            .map_err(|_| "Error sending EncryptionPacket")?;
+
+        Ok(())
     }
 }
 

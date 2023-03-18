@@ -11,7 +11,7 @@ use rand::{thread_rng, Rng};
 pub struct EncryptionData {
     pub rsa: Rsa<Private>,
     pub der_public_key: Vec<u8>,
-    pub token: Vec<u8>,
+    pub verify_token: Vec<u8>,
 }
 
 impl EncryptionData {
@@ -24,7 +24,7 @@ impl EncryptionData {
         Self {
             rsa,
             der_public_key,
-            token: thread_rng().gen::<[u8; 4]>().into(),
+            verify_token: thread_rng().gen::<[u8; 4]>().into(),
         }
     }
 }

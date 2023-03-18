@@ -2,6 +2,8 @@ use std::io::{self, Write};
 
 use flate2::{write::ZlibDecoder, write::ZlibEncoder, Compression};
 
+use crate::client::COMPRESSION_THRESHOLD;
+
 use super::{varint::FromVarInt, ToVarInt};
 
 #[derive(Debug, Clone)]
@@ -65,7 +67,7 @@ impl Packet {
 
         let mut result_buffer = vec![];
 
-        if compressed {
+        if compressed && buffer.len() > COMPRESSION_THRESHOLD as usize {
             let data_length = buffer.len();
             let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
 
