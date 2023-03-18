@@ -8,10 +8,10 @@ pub struct PingPacket {
 }
 
 impl PingPacket {
-    pub fn handle(packet: &Packet) -> Result<Option<Packet>, &'static str> {
+    pub fn handle(packet: &Packet) -> Result<Vec<Packet>, &'static str> {
         debug!("{:?}", PingPacket::try_from(packet.clone())?);
 
-        Ok(Some(packet.clone()))
+        Ok(vec![packet.clone()])
     }
 }
 

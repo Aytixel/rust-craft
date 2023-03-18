@@ -15,30 +15,28 @@ impl StatusPacket {
         }
     }
 
-    pub fn handle() -> Result<Option<Packet>, &'static str> {
+    pub fn handle() -> Result<Vec<Packet>, &'static str> {
         debug!("{:?}", StatusPacket);
 
-        Ok(Some(
-            StatusPacket::new(
-                json!({
-                    "version": {
-                        "name": "1.19.4",
-                        "protocol": 762
-                    },
-                    "players": {
-                        "max": 0,
-                        "online": 0,
-                        "sample": []
-                    },
-                    "description": {
-                        "text": "RustCraft"
-                    },
-                    "favicon": "",
-                    "enforcesSecureChat": true
-                })
-                .to_string(),
-            )
-            .into(),
-        ))
+        Ok(vec![StatusPacket::new(
+            json!({
+                "version": {
+                    "name": "1.19.4",
+                    "protocol": 762
+                },
+                "players": {
+                    "max": 0,
+                    "online": 0,
+                    "sample": []
+                },
+                "description": {
+                    "text": "RustCraft"
+                },
+                "favicon": "",
+                "enforcesSecureChat": true
+            })
+            .to_string(),
+        )
+        .into()])
     }
 }

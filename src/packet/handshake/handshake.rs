@@ -12,10 +12,7 @@ pub struct HandshakePacket {
 }
 
 impl HandshakePacket {
-    pub fn handle(
-        state: &mut ClientState,
-        packet: &Packet,
-    ) -> Result<Option<Packet>, &'static str> {
+    pub fn handle(state: &mut ClientState, packet: &Packet) -> Result<Vec<Packet>, &'static str> {
         let handshake_packet = HandshakePacket::try_from(packet.clone())?;
 
         debug!("{:?}", handshake_packet);
@@ -26,7 +23,7 @@ impl HandshakePacket {
             *state = ClientState::Login;
         }
 
-        Ok(None)
+        Ok(vec![])
     }
 }
 
