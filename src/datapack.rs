@@ -1,12 +1,7 @@
 mod dimension_type;
+mod recipes;
 
 use std::collections::HashMap;
-
-pub trait DeserializeFolder {
-    fn deserialize_folder() -> Result<HashMap<String, Self>, String>
-    where
-        Self: Sized;
-}
 
 #[derive(Debug)]
 pub struct Datapack {
@@ -16,7 +11,9 @@ pub struct Datapack {
 impl Datapack {
     pub fn new() -> Result<Self, String> {
         Ok(Self {
-            dimension_type: dimension_type::DimensionType::deserialize_folder()?,
+            dimension_type: dimension_type::DimensionType::deserialize_folder(
+                "./data/minecraft/dimension_type/",
+            )?,
         })
     }
 }

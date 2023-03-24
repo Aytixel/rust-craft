@@ -8,8 +8,7 @@ pub struct Value {
 
 #[derive(Debug, Deserialize)]
 pub struct Struct {
-    #[serde(rename = "type")]
-    _type: String,
+    r#type: String,
     value: Value,
 }
 
