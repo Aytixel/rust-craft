@@ -23,8 +23,8 @@ impl StatusPacket {
             .send_packet(StatusPacket::new(
                 json!({
                     "version": {
-                        "name": "1.19.4",
-                        "protocol": 762
+                        "name": client.version_info.name,
+                        "protocol": client.version_info.protocol
                     },
                     "players": {
                         "max": 0,

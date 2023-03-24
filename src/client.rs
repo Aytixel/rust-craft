@@ -1,4 +1,4 @@
-use std::io::{self, ErrorKind, Read, Write};
+use std::io::{ErrorKind, Read, Write};
 use std::net::{Shutdown, SocketAddr, TcpStream};
 use std::rc::Rc;
 
@@ -11,7 +11,7 @@ use crate::packet::handshake::HandshakePacket;
 use crate::packet::login::{EncryptionPacket, LoginStartPacket};
 use crate::packet::status::{PingPacket, StatusPacket};
 use crate::packet::{ServerHandshakePacketId, ServerLoginPacketId, ServerStatusPacketId};
-use crate::server::EncryptionData;
+use crate::server::{EncryptionData, VersionInfo};
 
 pub const COMPRESSION_THRESHOLD: i32 = 256;
 
@@ -35,6 +35,7 @@ pub struct Client {
     buffer: Vec<u8>,
     pub compressed: bool,
     pub encryption_data: Rc<EncryptionData>,
+    pub version_info: Rc<VersionInfo>,
     pub player_data: Rc<PlayerData>,
 }
 
@@ -43,11 +44,13 @@ impl Client {
         socket: TcpStream,
         socket_addr: SocketAddr,
         encryption_data: Rc<EncryptionData>,
-    ) -> io::Result<Self> {
-        if let Err(e) = socket.set_nonblocking(true) {
-            socket.shutdown(Shutdown::Both)?;
 
-            return Err(e);
+        version_info: Rc<VersionInfo>,
+    ) -> Result<Self, String> {
+        if let Err(e) = socket.set_nonblocking(true) {
+            socket.shutdown(Shutdown::Both).map_err(|e| e.to_string())?;
+
+            return Err(e.to_string());
         }
 
         Ok(Self {
@@ -57,16 +60,17 @@ impl Client {
             buffer: vec![],
             compressed: false,
             encryption_data,
+            version_info,
             player_data: Rc::new(PlayerData::default()),
         })
     }
 
-    pub fn update(&mut self) -> io::Result<()> {
+    pub fn update(&mut self) -> Result<(), String> {
         let mut buffer = [0u8; 2048];
         let length = match self.socket.read(&mut buffer) {
             Ok(v) => v,
             Err(ref e) if e.kind() == ErrorKind::WouldBlock => return Ok(()),
-            Err(e) => return Err(e),
+            Err(e) => return Err(e.to_string()),
         };
 
         self.buffer.append(&mut buffer[..length].to_vec());
@@ -85,9 +89,15 @@ impl Client {
         Ok(())
     }
 
-    pub fn send_packet(&mut self, packet: Packet) -> io::Result<()> {
-        self.socket.write_all(&packet.try_into(self.compressed)?)?;
-        self.socket.flush()?;
+    pub fn send_packet(&mut self, packet: Packet) -> Result<(), String> {
+        self.socket
+            .write_all(
+                &packet
+                    .try_into(self.compressed)
+                    .map_err(|e| e.to_string())?,
+            )
+            .map_err(|e| e.to_string())?;
+        self.socket.flush().map_err(|e| e.to_string())?;
 
         Ok(())
     }
@@ -113,7 +123,9 @@ impl Client {
         }
     }
 
-    pub fn disconnect(&self) -> io::Result<()> {
-        self.socket.shutdown(Shutdown::Both)
+    pub fn disconnect(&self) -> Result<(), String> {
+        self.socket
+            .shutdown(Shutdown::Both)
+            .map_err(|e| e.to_string())
     }
 }

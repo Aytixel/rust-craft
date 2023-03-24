@@ -1,4 +1,4 @@
-use std::{io, thread::sleep, time::Duration};
+use std::{thread::sleep, time::Duration};
 
 use log::info;
 use server::Server;
@@ -8,7 +8,7 @@ mod data_type;
 mod packet;
 mod server;
 
-fn main() -> io::Result<()> {
+fn main() -> Result<(), String> {
     env_logger::init();
 
     let mut server = Server::new("0.0.0.0:25565")?;

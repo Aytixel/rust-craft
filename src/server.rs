@@ -1,4 +1,5 @@
-use std::io::{self, ErrorKind};
+use std::fs::File;
+use std::io::{BufReader, ErrorKind};
 use std::net::TcpListener;
 use std::rc::Rc;
 
@@ -7,6 +8,7 @@ use boring::pkey::Private;
 use boring::rsa::Rsa;
 use log::{debug, error};
 use rand::{thread_rng, Rng};
+use serde_json::Value;
 
 pub struct EncryptionData {
     pub rsa: Rsa<Private>,
@@ -15,7 +17,7 @@ pub struct EncryptionData {
 }
 
 impl EncryptionData {
-    pub fn new() -> Self {
+    fn new() -> Self {
         let rsa = Rsa::generate(1024).expect("Failed to generate a private key");
         let der_public_key = rsa
             .public_key_to_der()
@@ -29,32 +31,68 @@ impl EncryptionData {
     }
 }
 
+pub struct VersionInfo {
+    pub name: String,
+    pub protocol: u32,
+    pub world_version: u32,
+    pub ressource_pack_version: u32,
+    pub datapack_version: u32,
+}
+
+impl VersionInfo {
+    fn new() -> Result<Self, String> {
+        let file = File::open("./version.json").map_err(|_| "Can't open the version file.")?;
+        let reader = BufReader::new(file);
+        let version_file: Value = serde_json::from_reader(reader).map_err(|_| "")?;
+
+        fn to_err<T>(option: Option<T>) -> Result<T, &'static str> {
+            option.ok_or_else(|| "Wrong version file format")
+        }
+
+        Ok(Self {
+            name: to_err(version_file["name"].as_str())?.to_string(),
+            protocol: to_err(version_file["protocol_version"].as_u64())? as u32,
+            world_version: to_err(version_file["world_version"].as_u64())? as u32,
+            ressource_pack_version: to_err(version_file["pack_version"]["resource"].as_u64())?
+                as u32,
+            datapack_version: to_err(version_file["pack_version"]["data"].as_u64())? as u32,
+        })
+    }
+}
+
 pub struct Server {
     listener: TcpListener,
     client_vec: Vec<Client>,
     encryption_data: Rc<EncryptionData>,
+    version_info: Rc<VersionInfo>,
 }
 
 impl Server {
-    pub fn new(address: &'static str) -> io::Result<Self> {
-        let listener = TcpListener::bind(address)?;
+    pub fn new(address: &'static str) -> Result<Self, String> {
+        let listener = TcpListener::bind(address).map_err(|e| e.to_string())?;
 
-        listener.set_nonblocking(true)?;
+        listener.set_nonblocking(true).map_err(|e| e.to_string())?;
 
         Ok(Self {
             listener,
             client_vec: vec![],
             encryption_data: Rc::new(EncryptionData::new()),
+            version_info: Rc::new(VersionInfo::new()?),
         })
     }
 
-    pub fn update(&mut self) -> io::Result<()> {
+    pub fn update(&mut self) -> Result<(), String> {
         match self.listener.accept() {
             Ok((socket, socket_addr)) => {
                 debug!("New tcp client: {socket_addr:?}");
 
                 self.client_vec.push(
-                    match Client::new(socket, socket_addr, self.encryption_data.clone()) {
+                    match Client::new(
+                        socket,
+                        socket_addr,
+                        self.encryption_data.clone(),
+                        self.version_info.clone(),
+                    ) {
                         Ok(v) => v,
                         Err(e) => {
                             error!("Cannot create tcp client: {e:?}");
