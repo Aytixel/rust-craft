@@ -1,20 +1,20 @@
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
-pub struct Value {
+pub struct LightLevelRange {
     max_inclusive: u32,
     min_inclusive: u32,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Struct {
+pub struct MonsterSpawnLightLevelRange {
     r#type: String,
-    value: Value,
+    value: LightLevelRange,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
-pub enum MonsterSpawnLightLevel {
-    U32(u32),
-    Struct(Struct),
+pub enum MonsterSpawnLightLevelVariant {
+    MonsterSpawnLightLevel(u32),
+    MonsterSpawnLightLevelRange(MonsterSpawnLightLevelRange),
 }

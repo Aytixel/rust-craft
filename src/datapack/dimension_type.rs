@@ -18,7 +18,7 @@ pub struct DimensionType {
     min_y: i32,
     infiniburn: String,
     monster_spawn_block_light_limit: i32,
-    monster_spawn_light_level: monster_spawn_light_level::MonsterSpawnLightLevel,
+    monster_spawn_light_level: monster_spawn_light_level::MonsterSpawnLightLevelVariant,
     natural: bool,
     piglin_safe: bool,
     respawn_anchor_works: bool,

@@ -9,7 +9,7 @@ use serde::Deserialize;
 use self::ingredients::Ingredients;
 
 #[derive(Debug, Deserialize, DeserializeFolder)]
-struct Recipes {
+pub struct Recipes {
     r#type: String,
     category: Option<String>,
     group: Option<String>,
