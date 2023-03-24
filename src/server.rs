@@ -41,12 +41,14 @@ pub struct VersionInfo {
 
 impl VersionInfo {
     fn new() -> Result<Self, String> {
-        let file = File::open("./version.json").map_err(|_| "Can't open the version file.")?;
+        let file = File::open("./version.json")
+            .map_err(|e| format!("Can't open the version file. {e}"))?;
         let reader = BufReader::new(file);
-        let version_file: Value = serde_json::from_reader(reader).map_err(|_| "")?;
+        let version_file: Value = serde_json::from_reader(reader)
+            .map_err(|e| format!("Can't parse the version file. {e}"))?;
 
-        fn to_err<T>(option: Option<T>) -> Result<T, &'static str> {
-            option.ok_or_else(|| "Wrong version file format")
+        fn to_err<T>(option: Option<T>) -> Result<T, String> {
+            option.ok_or_else(|| "Wrong version file format".to_string())
         }
 
         Ok(Self {

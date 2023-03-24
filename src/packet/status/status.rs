@@ -16,7 +16,7 @@ impl StatusPacket {
         }
     }
 
-    pub fn handle(client: &mut Client) -> Result<(), &'static str> {
+    pub fn handle(client: &mut Client) -> Result<(), String> {
         debug!("{:?}", StatusPacket);
 
         client

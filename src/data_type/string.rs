@@ -1,15 +1,15 @@
 use super::varint::{FromVarInt, ToVarInt};
 
 pub trait FromString {
-    fn from_packet_string(&mut self) -> Result<String, &'static str>;
+    fn from_packet_string(&mut self) -> Result<String, String>;
 }
 
 impl FromString for Vec<u8> {
-    fn from_packet_string(&mut self) -> Result<String, &'static str> {
+    fn from_packet_string(&mut self) -> Result<String, String> {
         let length = self.from_varint()?;
 
         if self.len() < length as usize {
-            return Err("Not enough data to parse String");
+            return Err("Not enough data to parse String".to_string());
         }
 
         Ok(String::from_utf8_lossy(self.drain(0..length as usize).as_slice()).to_string())
@@ -43,7 +43,7 @@ mod tests {
     fn from_packet_string() {
         assert_eq!(
             vec![9, 0, 0, 0, 0, 0, 1, 1, 2].from_packet_string(),
-            Err("Not enough data to parse String")
+            Err("Not enough data to parse String".to_string())
         );
         assert_eq!(
             vec![9, 0, 0, 0, 0, 0, 1, 1, 2, 10]

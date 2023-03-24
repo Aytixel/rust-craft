@@ -12,7 +12,7 @@ pub struct LoginStartPacket {
 }
 
 impl LoginStartPacket {
-    pub fn handle(client: &mut Client, packet: &Packet) -> Result<(), &'static str> {
+    pub fn handle(client: &mut Client, packet: &Packet) -> Result<(), String> {
         debug!("{:?}", LoginStartPacket::try_from(packet.clone())?);
 
         client
@@ -23,10 +23,8 @@ impl LoginStartPacket {
     }
 }
 
-impl TryFrom<Packet> for LoginStartPacket {
-    type Error = &'static str;
-
-    fn try_from(mut packet: Packet) -> Result<Self, Self::Error> {
+impl LoginStartPacket {
+    fn try_from(mut packet: Packet) -> Result<Self, String> {
         let name = packet.data.from_packet_string()?;
         let has_uuid = packet.data.from_byte()? != 0;
 

@@ -102,20 +102,20 @@ impl Client {
         Ok(())
     }
 
-    fn handshake(&mut self, packet: &Packet) -> Result<(), &'static str> {
+    fn handshake(&mut self, packet: &Packet) -> Result<(), String> {
         match FromPrimitive::from_i32(packet.id).ok_or_else(|| "Unknown packet id")? {
             ServerHandshakePacketId::Handshake => HandshakePacket::handle(&mut self.state, packet),
         }
     }
 
-    fn status(&mut self, packet: &Packet) -> Result<(), &'static str> {
+    fn status(&mut self, packet: &Packet) -> Result<(), String> {
         match FromPrimitive::from_i32(packet.id).ok_or_else(|| "Unknown packet id")? {
             ServerStatusPacketId::Status => StatusPacket::handle(self),
             ServerStatusPacketId::Ping => PingPacket::handle(self, packet),
         }
     }
 
-    fn login(&mut self, packet: &Packet) -> Result<(), &'static str> {
+    fn login(&mut self, packet: &Packet) -> Result<(), String> {
         match FromPrimitive::from_i32(packet.id).ok_or_else(|| "Unknown packet id")? {
             ServerLoginPacketId::LoginStart => LoginStartPacket::handle(self, packet),
             ServerLoginPacketId::Encryption => EncryptionPacket::handle(self, packet),

@@ -2,23 +2,23 @@ const SEGMENT_BITS: u8 = 0x7F;
 const CONTINUE_BIT: u8 = 0x80;
 
 pub trait FromVarInt {
-    fn from_varint(&mut self) -> Result<i32, &'static str>;
+    fn from_varint(&mut self) -> Result<i32, String>;
 }
 
 impl FromVarInt for Vec<u8> {
-    fn from_varint(&mut self) -> Result<i32, &'static str> {
+    fn from_varint(&mut self) -> Result<i32, String> {
         let mut value: i32 = 0;
         let mut position = 0;
         let mut current_byte_position = 0;
         let mut current_byte;
 
         if self.len() == 0 {
-            return Err("No data to parse VarInt");
+            return Err("No data to parse VarInt".to_string());
         }
 
         loop {
             if self.len() == current_byte_position {
-                return Err("Not enough data to parse VarInt");
+                return Err("Not enough data to parse VarInt".to_string());
             }
 
             current_byte = self[current_byte_position];
@@ -32,7 +32,7 @@ impl FromVarInt for Vec<u8> {
             position += 7;
 
             if position >= 32 {
-                return Err("VarInt is too big");
+                return Err("VarInt is too big".to_string());
             }
         }
 
@@ -86,10 +86,13 @@ mod tests {
             (vec![0x80, 0x80, 0x80, 0x80, 0x08], -2147483648),
         ];
 
-        assert_eq!(vec![].from_varint(), Err("No data to parse VarInt"));
+        assert_eq!(
+            vec![].from_varint(),
+            Err("No data to parse VarInt".to_string())
+        );
         assert_eq!(
             vec![0x80, 0x80].from_varint(),
-            Err("Not enough data to parse VarInt")
+            Err("Not enough data to parse VarInt".to_string())
         );
 
         for (mut input, output) in test_data {

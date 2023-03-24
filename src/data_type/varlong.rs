@@ -2,23 +2,23 @@ const SEGMENT_BITS: u8 = 0x7F;
 const CONTINUE_BIT: u8 = 0x80;
 
 pub trait FromVarLong {
-    fn from_varlong(&mut self) -> Result<i64, &'static str>;
+    fn from_varlong(&mut self) -> Result<i64, String>;
 }
 
 impl FromVarLong for Vec<u8> {
-    fn from_varlong(&mut self) -> Result<i64, &'static str> {
+    fn from_varlong(&mut self) -> Result<i64, String> {
         let mut value: i64 = 0;
         let mut position = 0;
         let mut current_byte_position = 0;
         let mut current_byte;
 
         if self.len() == 0 {
-            return Err("No data to parse VarLong");
+            return Err("No data to parse VarLong".to_string());
         }
 
         loop {
             if self.len() == current_byte_position {
-                return Err("Not enough data to parse VarLong");
+                return Err("Not enough data to parse VarLong".to_string());
             }
 
             current_byte = self[current_byte_position];
@@ -32,7 +32,7 @@ impl FromVarLong for Vec<u8> {
             position += 7;
 
             if position >= 64 {
-                return Err("VarLong is too big");
+                return Err("VarLong is too big".to_string());
             }
         }
 
@@ -98,10 +98,13 @@ mod tests {
             ),
         ];
 
-        assert_eq!(vec![].from_varlong(), Err("No data to parse VarLong"));
+        assert_eq!(
+            vec![].from_varlong(),
+            Err("No data to parse VarLong".to_string())
+        );
         assert_eq!(
             vec![0x80, 0x80].from_varlong(),
-            Err("Not enough data to parse VarLong")
+            Err("Not enough data to parse VarLong".to_string())
         );
 
         for (mut input, output) in test_data {

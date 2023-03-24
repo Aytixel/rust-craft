@@ -12,7 +12,7 @@ pub struct HandshakePacket {
 }
 
 impl HandshakePacket {
-    pub fn handle(state: &mut ClientState, packet: &Packet) -> Result<(), &'static str> {
+    pub fn handle(state: &mut ClientState, packet: &Packet) -> Result<(), String> {
         let handshake_packet = HandshakePacket::try_from(packet.clone())?;
 
         debug!("{:?}", handshake_packet);
@@ -27,10 +27,8 @@ impl HandshakePacket {
     }
 }
 
-impl TryFrom<Packet> for HandshakePacket {
-    type Error = &'static str;
-
-    fn try_from(mut packet: Packet) -> Result<Self, Self::Error> {
+impl HandshakePacket {
+    fn try_from(mut packet: Packet) -> Result<Self, String> {
         Ok(HandshakePacket {
             protocol_version: packet.data.from_varint()?,
             hostname: packet.data.from_packet_string()?,

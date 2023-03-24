@@ -1,11 +1,11 @@
 pub trait FromLong {
-    fn from_long(&mut self) -> Result<i64, &'static str>;
+    fn from_long(&mut self) -> Result<i64, String>;
 }
 
 impl FromLong for Vec<u8> {
-    fn from_long(&mut self) -> Result<i64, &'static str> {
+    fn from_long(&mut self) -> Result<i64, String> {
         if self.len() < 2 {
-            return Err("Not enough data to parse Long");
+            return Err("Not enough data to parse Long".to_string());
         }
 
         Ok(i64::from_be_bytes([
@@ -37,7 +37,10 @@ mod tests {
 
     #[test]
     fn from_long() {
-        assert_eq!(vec![1].from_long(), Err("Not enough data to parse Long"));
+        assert_eq!(
+            vec![1].from_long(),
+            Err("Not enough data to parse Long".to_string())
+        );
         assert_eq!(
             vec![1, 1, 1, 1, 1, 1, 1, 1].from_long().unwrap(),
             72340172838076673

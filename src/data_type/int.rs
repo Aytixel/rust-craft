@@ -1,11 +1,11 @@
 pub trait FromInt {
-    fn from_int(&mut self) -> Result<i32, &'static str>;
+    fn from_int(&mut self) -> Result<i32, String>;
 }
 
 impl FromInt for Vec<u8> {
-    fn from_int(&mut self) -> Result<i32, &'static str> {
+    fn from_int(&mut self) -> Result<i32, String> {
         if self.len() < 4 {
-            return Err("Not enough data to parse Int");
+            return Err("Not enough data to parse Int".to_string());
         }
 
         Ok(i32::from_be_bytes([
@@ -33,7 +33,10 @@ mod tests {
 
     #[test]
     fn from_int() {
-        assert_eq!(vec![1].from_int(), Err("Not enough data to parse Int"));
+        assert_eq!(
+            vec![1].from_int(),
+            Err("Not enough data to parse Int".to_string())
+        );
         assert_eq!(vec![1, 1, 1, 1].from_int().unwrap(), 16843009);
     }
 

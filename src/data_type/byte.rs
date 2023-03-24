@@ -1,21 +1,21 @@
 pub trait FromByte {
-    fn from_byte(&mut self) -> Result<i8, &'static str>;
+    fn from_byte(&mut self) -> Result<i8, String>;
 
-    fn from_byte_array(&mut self, length: usize) -> Result<Vec<u8>, &'static str>;
+    fn from_byte_array(&mut self, length: usize) -> Result<Vec<u8>, String>;
 }
 
 impl FromByte for Vec<u8> {
-    fn from_byte(&mut self) -> Result<i8, &'static str> {
+    fn from_byte(&mut self) -> Result<i8, String> {
         if self.len() < 1 {
-            return Err("Not enough data to parse Byte");
+            return Err("Not enough data to parse Byte".to_string());
         }
 
         Ok(self.remove(0) as i8)
     }
 
-    fn from_byte_array(&mut self, length: usize) -> Result<Vec<u8>, &'static str> {
+    fn from_byte_array(&mut self, length: usize) -> Result<Vec<u8>, String> {
         if self.len() < length {
-            return Err("Not enough data to parse Byte Array");
+            return Err("Not enough data to parse Byte Array".to_string());
         }
 
         Ok(self.drain(..length).collect())
@@ -38,7 +38,10 @@ mod tests {
 
     #[test]
     fn from_byte() {
-        assert_eq!(vec![].from_byte(), Err("Not enough data to parse Byte"));
+        assert_eq!(
+            vec![].from_byte(),
+            Err("Not enough data to parse Byte".to_string())
+        );
         assert_eq!(vec![1].from_byte().unwrap(), 1);
         assert_eq!(vec![89].from_byte().unwrap(), 89);
     }
@@ -47,7 +50,7 @@ mod tests {
     fn from_byte_array() {
         assert_eq!(
             vec![].from_byte_array(1),
-            Err("Not enough data to parse Byte Array")
+            Err("Not enough data to parse Byte Array".to_string())
         );
         assert_eq!(vec![1, 3, 80].from_byte_array(3).unwrap(), vec![1, 3, 80]);
         assert_eq!(

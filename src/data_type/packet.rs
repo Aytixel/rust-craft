@@ -1,4 +1,4 @@
-use std::io::{self, Write};
+use std::io::Write;
 
 use flate2::{write::ZlibDecoder, write::ZlibEncoder, Compression};
 
@@ -13,16 +13,16 @@ pub struct Packet {
 }
 
 impl Packet {
-    pub fn try_from(data: &mut Vec<u8>, compressed: bool) -> Result<Self, &'static str> {
+    pub fn try_from(data: &mut Vec<u8>, compressed: bool) -> Result<Self, String> {
         if data.len() == 0 {
-            return Err("No data to parse packet");
+            return Err("No data to parse packet".to_string());
         }
 
         let mut data_copy = data.clone();
         let packet_length = data_copy.from_varint()? as usize;
 
         if data_copy.len() < packet_length {
-            return Err("Incomplete packet");
+            return Err("Incomplete packet".to_string());
         }
 
         let mut packet = Packet {
@@ -36,10 +36,9 @@ impl Packet {
             if data_lenth == 0 {
                 data_copy.drain(0..packet_length).collect()
             } else {
-                match ZlibDecoder::new(data_copy.drain(0..packet_length).collect()).finish() {
-                    Ok(v) => v,
-                    Err(_) => return Err("Zlib decoding error"),
-                }
+                ZlibDecoder::new(data_copy.drain(0..packet_length).collect())
+                    .finish()
+                    .map_err(|e| e.to_string())?
             }
         } else {
             data_copy.drain(0..packet_length).collect()
@@ -59,7 +58,7 @@ impl Packet {
         Ok(packet)
     }
 
-    pub fn try_into(mut self, compressed: bool) -> io::Result<Vec<u8>> {
+    pub fn try_into(mut self, compressed: bool) -> Result<Vec<u8>, String> {
         let mut buffer = vec![];
 
         buffer.append(&mut self.id.to_varint());
@@ -71,8 +70,8 @@ impl Packet {
             let data_length = buffer.len();
             let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
 
-            encoder.write_all(&buffer)?;
-            buffer = encoder.finish()?;
+            encoder.write_all(&buffer).map_err(|e| e.to_string())?;
+            buffer = encoder.finish().map_err(|e| e.to_string())?;
 
             result_buffer.append(&mut (buffer.len() as i32).to_varint());
             result_buffer.append(&mut (data_length as i32).to_varint());

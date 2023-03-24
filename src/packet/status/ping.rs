@@ -11,7 +11,7 @@ pub struct PingPacket {
 }
 
 impl PingPacket {
-    pub fn handle(client: &mut Client, packet: &Packet) -> Result<(), &'static str> {
+    pub fn handle(client: &mut Client, packet: &Packet) -> Result<(), String> {
         debug!("{:?}", PingPacket::try_from(packet.clone())?);
 
         client
@@ -22,10 +22,8 @@ impl PingPacket {
     }
 }
 
-impl TryFrom<Packet> for PingPacket {
-    type Error = &'static str;
-
-    fn try_from(mut packet: Packet) -> Result<Self, Self::Error> {
+impl PingPacket {
+    fn try_from(mut packet: Packet) -> Result<Self, String> {
         Ok(PingPacket {
             payload: packet.data.from_long()?,
         })

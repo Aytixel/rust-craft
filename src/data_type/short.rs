@@ -1,11 +1,11 @@
 pub trait FromShort {
-    fn from_short(&mut self) -> Result<i16, &'static str>;
+    fn from_short(&mut self) -> Result<i16, String>;
 }
 
 impl FromShort for Vec<u8> {
-    fn from_short(&mut self) -> Result<i16, &'static str> {
+    fn from_short(&mut self) -> Result<i16, String> {
         if self.len() < 2 {
-            return Err("Not enough data to parse Short");
+            return Err("Not enough data to parse Short".to_string());
         }
 
         Ok(i16::from_be_bytes([self.remove(0), self.remove(0)]))
@@ -28,7 +28,10 @@ mod tests {
 
     #[test]
     fn from_short() {
-        assert_eq!(vec![1].from_short(), Err("Not enough data to parse Short"));
+        assert_eq!(
+            vec![1].from_short(),
+            Err("Not enough data to parse Short".to_string())
+        );
         assert_eq!(vec![1, 1].from_short().unwrap(), 257);
     }
 

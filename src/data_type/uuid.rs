@@ -1,16 +1,16 @@
 use uuid::Uuid;
 
 pub trait FromUuid {
-    fn from_uuid(&mut self) -> Result<Uuid, &'static str>;
+    fn from_uuid(&mut self) -> Result<Uuid, String>;
 }
 
 impl FromUuid for Vec<u8> {
-    fn from_uuid(&mut self) -> Result<Uuid, &'static str> {
+    fn from_uuid(&mut self) -> Result<Uuid, String> {
         if self.len() < 16 {
-            return Err("Not enough data to parse Uuid");
+            return Err("Not enough data to parse Uuid".to_string());
         }
 
-        let uuid = Uuid::from_slice(&self[..16]).map_err(|_| "Can't parse Uuid from data")?;
+        let uuid = Uuid::from_slice(&self[..16]).map_err(|e| e.to_string())?;
 
         self.drain(..16);
 
@@ -35,7 +35,10 @@ mod tests {
 
     #[test]
     fn from_uuid() {
-        assert_eq!(vec![1].from_uuid(), Err("Not enough data to parse Uuid"));
+        assert_eq!(
+            vec![1].from_uuid(),
+            Err("Not enough data to parse Uuid".to_string())
+        );
         assert_eq!(
             vec![1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
                 .from_uuid()

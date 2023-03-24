@@ -31,7 +31,7 @@ impl EncryptionPacket {
         }
     }
 
-    pub fn handle(client: &mut Client, packet: &Packet) -> Result<(), &'static str> {
+    pub fn handle(client: &mut Client, packet: &Packet) -> Result<(), String> {
         let encryption_packet =
             EncryptionPacket::try_from(packet.clone(), client.encryption_data.clone())?;
 
@@ -44,7 +44,7 @@ impl EncryptionPacket {
                 ))
                 .map_err(|_| "The verify token is not correct. Error sending DisconnectPacket")?;
 
-            return Err("The verify token is not correct");
+            return Err("The verify token is not correct".to_string());
         }
 
         client.state = ClientState::Play;
@@ -62,10 +62,7 @@ impl EncryptionPacket {
         Ok(())
     }
 
-    fn try_from(
-        mut packet: Packet,
-        encryption_data: Rc<EncryptionData>,
-    ) -> Result<Self, &'static str> {
+    fn try_from(mut packet: Packet, encryption_data: Rc<EncryptionData>) -> Result<Self, String> {
         let mut shared_secret_length = packet.data.from_varint()? as usize;
         let mut shared_secret = vec![0; encryption_data.rsa.size() as usize];
 
