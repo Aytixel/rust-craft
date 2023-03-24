@@ -47,11 +47,7 @@ impl Client {
 
         version_info: Rc<VersionInfo>,
     ) -> Result<Self, String> {
-        if let Err(e) = socket.set_nonblocking(true) {
-            socket.shutdown(Shutdown::Both).map_err(|e| e.to_string())?;
-
-            return Err(e.to_string());
-        }
+        socket.set_nonblocking(true).map_err(|e| e.to_string())?;
 
         Ok(Self {
             socket,
