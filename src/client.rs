@@ -11,7 +11,8 @@ use crate::packet::handshake::HandshakePacket;
 use crate::packet::login::{EncryptionPacket, LoginStartPacket};
 use crate::packet::status::{PingPacket, StatusPacket};
 use crate::packet::{ServerHandshakePacketId, ServerLoginPacketId, ServerStatusPacketId};
-use crate::server::{EncryptionData, VersionInfo};
+use crate::server::EncryptionData;
+use crate::version_info::VersionInfo;
 
 pub const COMPRESSION_THRESHOLD: i32 = 256;
 

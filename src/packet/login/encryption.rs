@@ -35,7 +35,7 @@ impl EncryptionPacket {
         let encryption_packet =
             EncryptionPacket::try_from(packet.clone(), client.encryption_data.clone())?;
 
-        debug!("{:?}", encryption_packet);
+        debug!("{:#?}", encryption_packet);
 
         if encryption_packet.verify_token != client.encryption_data.verify_token {
             client

@@ -15,7 +15,7 @@ impl HandshakePacket {
     pub fn handle(state: &mut ClientState, packet: &Packet) -> Result<(), String> {
         let handshake_packet = HandshakePacket::try_from(packet.clone())?;
 
-        debug!("{:?}", handshake_packet);
+        debug!("{:#?}", handshake_packet);
 
         if handshake_packet.next_state == 1 {
             *state = ClientState::Status;

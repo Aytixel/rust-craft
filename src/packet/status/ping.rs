@@ -12,7 +12,7 @@ pub struct PingPacket {
 
 impl PingPacket {
     pub fn handle(client: &mut Client, packet: &Packet) -> Result<(), String> {
-        debug!("{:?}", PingPacket::try_from(packet.clone())?);
+        debug!("{:#?}", PingPacket::try_from(packet.clone())?);
 
         client
             .send_packet(packet.clone())

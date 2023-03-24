@@ -17,7 +17,7 @@ impl StatusPacket {
     }
 
     pub fn handle(client: &mut Client) -> Result<(), String> {
-        debug!("{:?}", StatusPacket);
+        debug!("{:#?}", StatusPacket);
 
         client
             .send_packet(StatusPacket::new(

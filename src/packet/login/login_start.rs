@@ -13,7 +13,7 @@ pub struct LoginStartPacket {
 
 impl LoginStartPacket {
     pub fn handle(client: &mut Client, packet: &Packet) -> Result<(), String> {
-        debug!("{:?}", LoginStartPacket::try_from(packet.clone())?);
+        debug!("{:#?}", LoginStartPacket::try_from(packet.clone())?);
 
         client
             .send_packet(EncryptionPacket::new(client.encryption_data.clone()))
