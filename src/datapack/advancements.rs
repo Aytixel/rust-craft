@@ -33,12 +33,47 @@ impl Debug for Advancement {
 }
 
 #[derive(Debug)]
+pub struct RecipesAdvancements {
+    root: HashMap<String, Advancement>,
+    brewing: HashMap<String, Advancement>,
+    building_blocks: HashMap<String, Advancement>,
+    combat: HashMap<String, Advancement>,
+    decorations: HashMap<String, Advancement>,
+    food: HashMap<String, Advancement>,
+    misc: HashMap<String, Advancement>,
+    redstone: HashMap<String, Advancement>,
+    tools: HashMap<String, Advancement>,
+    transportation: HashMap<String, Advancement>,
+}
+
+impl RecipesAdvancements {
+    fn deserialize_folder(path: &str) -> Result<Self, String> {
+        Ok(Self {
+            root: Advancement::deserialize_folder(path)?,
+            brewing: Advancement::deserialize_folder(format!("{path}/brewing/").as_str())?,
+            building_blocks: Advancement::deserialize_folder(
+                format!("{path}/building_blocks/").as_str(),
+            )?,
+            combat: Advancement::deserialize_folder(format!("{path}/combat/").as_str())?,
+            decorations: Advancement::deserialize_folder(format!("{path}/decorations/").as_str())?,
+            food: Advancement::deserialize_folder(format!("{path}/food/").as_str())?,
+            misc: Advancement::deserialize_folder(format!("{path}/misc/").as_str())?,
+            redstone: Advancement::deserialize_folder(format!("{path}/redstone/").as_str())?,
+            tools: Advancement::deserialize_folder(format!("{path}/tools/").as_str())?,
+            transportation: Advancement::deserialize_folder(
+                format!("{path}/transportation/").as_str(),
+            )?,
+        })
+    }
+}
+
+#[derive(Debug)]
 pub struct Advancements {
     adventure: HashMap<String, Advancement>,
     end: HashMap<String, Advancement>,
     husbandry: HashMap<String, Advancement>,
     nether: HashMap<String, Advancement>,
-    recipes: HashMap<String, Advancement>,
+    recipes: RecipesAdvancements,
     story: HashMap<String, Advancement>,
 }
 
@@ -49,7 +84,7 @@ impl Advancements {
             end: Advancement::deserialize_folder(format!("{path}/end/").as_str())?,
             husbandry: Advancement::deserialize_folder(format!("{path}/husbandry/").as_str())?,
             nether: Advancement::deserialize_folder(format!("{path}/nether/").as_str())?,
-            recipes: Advancement::deserialize_folder(format!("{path}/recipes/").as_str())?,
+            recipes: RecipesAdvancements::deserialize_folder(format!("{path}/recipes/").as_str())?,
             story: Advancement::deserialize_folder(format!("{path}/story/").as_str())?,
         })
     }
