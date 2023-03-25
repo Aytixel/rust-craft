@@ -1,7 +1,11 @@
+mod advancements;
 mod chat_type;
 mod damage_type;
 mod dimension_type;
+mod items;
 mod recipes;
+mod tags;
+mod translate;
 
 use std::collections::HashMap;
 

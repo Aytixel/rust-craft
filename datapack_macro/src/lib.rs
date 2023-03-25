@@ -15,7 +15,7 @@ fn impl_deserialize_folder_macro(ast: &DeriveInput) -> TokenStream {
     let name = &ast.ident;
     let gen = quote! {
         impl #name {
-            pub fn deserialize_folder(path: &'static str) -> Result<std::collections::HashMap<String, #name>, String>
+            pub fn deserialize_folder(path: &str) -> Result<std::collections::HashMap<String, #name>, String>
             {
                 let mut hashmap = std::collections::HashMap::new();
 

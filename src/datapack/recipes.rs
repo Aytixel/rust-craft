@@ -1,5 +1,4 @@
 mod ingredients;
-mod item;
 
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -9,6 +8,8 @@ use serde::Deserialize;
 
 use self::ingredients::Ingredients;
 
+use super::items;
+
 #[derive(Deserialize, DeserializeFolder)]
 pub struct Recipes {
     r#type: String,
@@ -17,7 +18,7 @@ pub struct Recipes {
     ingredients: Option<Ingredients>,
     key: Option<HashMap<String, Ingredients>>,
     pattern: Option<Vec<String>>,
-    result: Option<item::ItemVariant>,
+    result: Option<items::ItemVariant>,
     experience: Option<f64>,
     cookingtime: Option<u32>,
     show_notification: Option<bool>,
