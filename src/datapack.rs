@@ -12,18 +12,19 @@ use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct Datapack {
-    advancements: advancements::Advancements,
+    advancements: HashMap<String, advancements::Advancement>,
     chat_type: HashMap<String, chat_type::ChatType>,
     damage_type: HashMap<String, damage_type::DamageType>,
     dimension_type: HashMap<String, dimension_type::DimensionType>,
     recipes: HashMap<String, recipes::Recipes>,
-    tags: tags::Tags,
+    structures: HashMap<String, structures::Structure>,
+    tags: HashMap<String, tags::Tag>,
 }
 
 impl Datapack {
     pub fn new() -> Result<Self, String> {
         Ok(Self {
-            advancements: advancements::Advancements::deserialize_folder(
+            advancements: advancements::Advancement::deserialize_json_folder(
                 "./data/minecraft/advancements/",
             )?,
             chat_type: chat_type::ChatType::deserialize_json_folder("./data/minecraft/chat_type/")?,
@@ -34,7 +35,10 @@ impl Datapack {
                 "./data/minecraft/dimension_type/",
             )?,
             recipes: recipes::Recipes::deserialize_json_folder("./data/minecraft/recipes/")?,
-            tags: tags::Tags::deserialize_folder("./data/minecraft/tags/")?,
+            structures: structures::Structure::deserialize_nbt_folder(
+                "./data/minecraft/structures/",
+            )?,
+            tags: tags::Tag::deserialize_json_folder("./data/minecraft/tags/")?,
         })
     }
 }
