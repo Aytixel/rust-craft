@@ -16,6 +16,7 @@ pub struct Datapack {
     damage_type: HashMap<String, damage_type::DamageType>,
     dimension_type: HashMap<String, dimension_type::DimensionType>,
     recipes: HashMap<String, recipes::Recipes>,
+    tags: tags::Tags,
 }
 
 impl Datapack {
@@ -32,6 +33,7 @@ impl Datapack {
                 "./data/minecraft/dimension_type/",
             )?,
             recipes: recipes::Recipes::deserialize_folder("./data/minecraft/recipes/")?,
+            tags: tags::Tags::deserialize_folder("./data/minecraft/tags/")?,
         })
     }
 }
