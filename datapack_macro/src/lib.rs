@@ -65,7 +65,6 @@ fn impl_deserialize_nbt_folder_macro(ast: &DeriveInput) -> TokenStream {
                         let file_name = file_name.to_str().unwrap();
 
                         if file_name.ends_with(".nbt") {
-                            println!("{}", file_name[..file_name.len() - 4].to_string());
                             let file = std::fs::File::open(file.path()).map_err(|e| e.to_string())?;
                             let reader = std::io::BufReader::new(file);
                             let mut decoder = flate2::read::GzDecoder::new(reader);
