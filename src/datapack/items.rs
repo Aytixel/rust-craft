@@ -25,15 +25,9 @@ impl Debug for Item {
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub struct Items {
-    items: Vec<ItemVariant>,
-}
-
 #[derive(Deserialize)]
 #[serde(untagged)]
 pub enum ItemVariant {
-    Items(Items),
     ItemString(String),
     Item(Item),
 }
@@ -41,13 +35,6 @@ pub enum ItemVariant {
 impl Debug for ItemVariant {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ItemVariant::Items(value) => {
-                if f.alternate() {
-                    write!(f, "{:#?}", value)
-                } else {
-                    write!(f, "{:?}", value)
-                }
-            }
             ItemVariant::ItemString(value) => write!(f, "{}", value),
             ItemVariant::Item(value) => {
                 if f.alternate() {
