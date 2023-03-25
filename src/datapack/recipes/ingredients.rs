@@ -2,12 +2,12 @@ use std::fmt::Debug;
 
 use serde::Deserialize;
 
-use super::result;
+use super::item;
 
 #[derive(Deserialize)]
 #[serde(untagged)]
 pub enum Ingredients {
-    Ingredient(result::ResultVariant),
+    Ingredient(item::ItemVariant),
     Ingredients(Vec<Ingredients>),
 }
 

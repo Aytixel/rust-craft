@@ -3,15 +3,15 @@ use std::fmt::Debug;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
-pub struct Result {
+pub struct Item {
     count: Option<u32>,
     #[serde(alias = "tag")]
     item: Option<String>,
 }
 
-impl Debug for Result {
+impl Debug for Item {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut s = f.debug_struct("Result");
+        let mut s = f.debug_struct("Item");
 
         if let Some(count) = &self.count {
             s.field("count", count);
@@ -27,16 +27,16 @@ impl Debug for Result {
 
 #[derive(Deserialize)]
 #[serde(untagged)]
-pub enum ResultVariant {
-    Item(String),
-    Result(Result),
+pub enum ItemVariant {
+    ItemString(String),
+    Item(Item),
 }
 
-impl Debug for ResultVariant {
+impl Debug for ItemVariant {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ResultVariant::Item(value) => write!(f, "{}", value),
-            ResultVariant::Result(value) => {
+            ItemVariant::ItemString(value) => write!(f, "{}", value),
+            ItemVariant::Item(value) => {
                 if f.alternate() {
                     write!(f, "{:#?}", value)
                 } else {

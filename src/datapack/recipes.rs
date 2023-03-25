@@ -1,5 +1,5 @@
 mod ingredients;
-mod result;
+mod item;
 
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -17,7 +17,7 @@ pub struct Recipes {
     ingredients: Option<Ingredients>,
     key: Option<HashMap<String, Ingredients>>,
     pattern: Option<Vec<String>>,
-    result: Option<result::ResultVariant>,
+    result: Option<item::ItemVariant>,
     experience: Option<f64>,
     cookingtime: Option<u32>,
     show_notification: Option<bool>,
