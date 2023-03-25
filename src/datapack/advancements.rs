@@ -78,7 +78,7 @@ pub struct Advancements {
 }
 
 impl Advancements {
-    fn deserialize_folder(path: &str) -> Result<Self, String> {
+    pub fn deserialize_folder(path: &str) -> Result<Self, String> {
         Ok(Self {
             adventure: Advancement::deserialize_folder(format!("{path}/adventure/").as_str())?,
             end: Advancement::deserialize_folder(format!("{path}/end/").as_str())?,
