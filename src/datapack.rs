@@ -4,6 +4,7 @@ mod damage_type;
 mod dimension_type;
 mod items;
 mod recipes;
+mod structures;
 mod tags;
 mod translate;
 
@@ -25,14 +26,14 @@ impl Datapack {
             advancements: advancements::Advancements::deserialize_folder(
                 "./data/minecraft/advancements/",
             )?,
-            chat_type: chat_type::ChatType::deserialize_folder("./data/minecraft/chat_type/")?,
-            damage_type: damage_type::DamageType::deserialize_folder(
+            chat_type: chat_type::ChatType::deserialize_json_folder("./data/minecraft/chat_type/")?,
+            damage_type: damage_type::DamageType::deserialize_json_folder(
                 "./data/minecraft/damage_type/",
             )?,
-            dimension_type: dimension_type::DimensionType::deserialize_folder(
+            dimension_type: dimension_type::DimensionType::deserialize_json_folder(
                 "./data/minecraft/dimension_type/",
             )?,
-            recipes: recipes::Recipes::deserialize_folder("./data/minecraft/recipes/")?,
+            recipes: recipes::Recipes::deserialize_json_folder("./data/minecraft/recipes/")?,
             tags: tags::Tags::deserialize_folder("./data/minecraft/tags/")?,
         })
     }

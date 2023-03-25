@@ -3,14 +3,14 @@ mod ingredients;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
-use datapack_macro::DeserializeFolder;
+use datapack_macro::DeserializeJsonFolder;
 use serde::Deserialize;
 
 use self::ingredients::Ingredients;
 
 use super::items;
 
-#[derive(Deserialize, DeserializeFolder)]
+#[derive(Deserialize, DeserializeJsonFolder)]
 pub struct Recipes {
     r#type: String,
     category: Option<String>,
@@ -78,7 +78,7 @@ mod tests {
     fn deserialize_folder() {
         println!(
             "{:#?}",
-            Recipes::deserialize_folder("./data/minecraft/recipes/").unwrap()
+            Recipes::deserialize_json_folder("./data/minecraft/recipes/").unwrap()
         );
     }
 }

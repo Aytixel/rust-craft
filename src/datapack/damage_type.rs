@@ -1,9 +1,9 @@
 use std::fmt::Debug;
 
-use datapack_macro::DeserializeFolder;
+use datapack_macro::DeserializeJsonFolder;
 use serde::Deserialize;
 
-#[derive(Deserialize, DeserializeFolder)]
+#[derive(Deserialize, DeserializeJsonFolder)]
 pub struct DamageType {
     effects: Option<String>,
     exhaustion: f64,
@@ -34,7 +34,7 @@ mod tests {
     fn deserialize_folder() {
         println!(
             "{:#?}",
-            DamageType::deserialize_folder("./data/minecraft/damage_type/").unwrap()
+            DamageType::deserialize_json_folder("./data/minecraft/damage_type/").unwrap()
         );
     }
 }

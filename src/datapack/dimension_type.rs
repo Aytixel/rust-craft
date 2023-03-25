@@ -2,10 +2,10 @@ mod monster_spawn_light_level;
 
 use std::fmt::Debug;
 
-use datapack_macro::DeserializeFolder;
+use datapack_macro::DeserializeJsonFolder;
 use serde::Deserialize;
 
-#[derive(Deserialize, DeserializeFolder)]
+#[derive(Deserialize, DeserializeJsonFolder)]
 pub struct DimensionType {
     ambient_light: f64,
     bed_works: bool,
@@ -68,7 +68,7 @@ mod tests {
     fn deserialize_folder() {
         println!(
             "{:#?}",
-            DimensionType::deserialize_folder("./data/minecraft/dimension_type/").unwrap()
+            DimensionType::deserialize_json_folder("./data/minecraft/dimension_type/").unwrap()
         );
     }
 }

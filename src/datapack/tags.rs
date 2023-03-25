@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use datapack_macro::DeserializeFolder;
+use datapack_macro::DeserializeJsonFolder;
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize, DeserializeFolder)]
+#[derive(Debug, Deserialize, DeserializeJsonFolder)]
 pub struct Tag {
     values: Vec<String>,
 }
@@ -17,8 +17,8 @@ pub struct BannerPatternTags {
 impl BannerPatternTags {
     fn deserialize_folder(path: &str) -> Result<Self, String> {
         Ok(Self {
-            root: Tag::deserialize_folder(path)?,
-            pattern_item: Tag::deserialize_folder(format!("{path}/pattern_item/").as_str())?,
+            root: Tag::deserialize_json_folder(path)?,
+            pattern_item: Tag::deserialize_json_folder(format!("{path}/pattern_item/").as_str())?,
         })
     }
 }
@@ -32,8 +32,8 @@ pub struct BlocksTags {
 impl BlocksTags {
     fn deserialize_folder(path: &str) -> Result<Self, String> {
         Ok(Self {
-            root: Tag::deserialize_folder(path)?,
-            mineable: Tag::deserialize_folder(format!("{path}/mineable/").as_str())?,
+            root: Tag::deserialize_json_folder(path)?,
+            mineable: Tag::deserialize_json_folder(format!("{path}/mineable/").as_str())?,
         })
     }
 }
@@ -47,8 +47,8 @@ pub struct BiomeTags {
 impl BiomeTags {
     fn deserialize_folder(path: &str) -> Result<Self, String> {
         Ok(Self {
-            root: Tag::deserialize_folder(path)?,
-            has_structure: Tag::deserialize_folder(format!("{path}/has_structure/").as_str())?,
+            root: Tag::deserialize_json_folder(path)?,
+            has_structure: Tag::deserialize_json_folder(format!("{path}/has_structure/").as_str())?,
         })
     }
 }
@@ -65,11 +65,11 @@ impl WorldgenTags {
     fn deserialize_folder(path: &str) -> Result<Self, String> {
         Ok(Self {
             biome: BiomeTags::deserialize_folder(format!("{path}/biome/").as_str())?,
-            flat_level_generator_preset: Tag::deserialize_folder(
+            flat_level_generator_preset: Tag::deserialize_json_folder(
                 format!("{path}/flat_level_generator_preset/").as_str(),
             )?,
-            structure: Tag::deserialize_folder(format!("{path}/structure/").as_str())?,
-            world_preset: Tag::deserialize_folder(format!("{path}/world_preset/").as_str())?,
+            structure: Tag::deserialize_json_folder(format!("{path}/structure/").as_str())?,
+            world_preset: Tag::deserialize_json_folder(format!("{path}/world_preset/").as_str())?,
         })
     }
 }
@@ -97,17 +97,17 @@ impl Tags {
                 format!("{path}/banner_pattern/").as_str(),
             )?,
             blocks: BlocksTags::deserialize_folder(format!("{path}/blocks/").as_str())?,
-            cat_variant: Tag::deserialize_folder(format!("{path}/cat_variant/").as_str())?,
-            damage_type: Tag::deserialize_folder(format!("{path}/damage_type/").as_str())?,
-            entity_types: Tag::deserialize_folder(format!("{path}/entity_types/").as_str())?,
-            fluids: Tag::deserialize_folder(format!("{path}/fluids/").as_str())?,
-            game_events: Tag::deserialize_folder(format!("{path}/game_events/").as_str())?,
-            instrument: Tag::deserialize_folder(format!("{path}/instrument/").as_str())?,
-            items: Tag::deserialize_folder(format!("{path}/items/").as_str())?,
-            painting_variant: Tag::deserialize_folder(
+            cat_variant: Tag::deserialize_json_folder(format!("{path}/cat_variant/").as_str())?,
+            damage_type: Tag::deserialize_json_folder(format!("{path}/damage_type/").as_str())?,
+            entity_types: Tag::deserialize_json_folder(format!("{path}/entity_types/").as_str())?,
+            fluids: Tag::deserialize_json_folder(format!("{path}/fluids/").as_str())?,
+            game_events: Tag::deserialize_json_folder(format!("{path}/game_events/").as_str())?,
+            instrument: Tag::deserialize_json_folder(format!("{path}/instrument/").as_str())?,
+            items: Tag::deserialize_json_folder(format!("{path}/items/").as_str())?,
+            painting_variant: Tag::deserialize_json_folder(
                 format!("{path}/painting_variant/").as_str(),
             )?,
-            point_of_interest_type: Tag::deserialize_folder(
+            point_of_interest_type: Tag::deserialize_json_folder(
                 format!("{path}/point_of_interest_type/").as_str(),
             )?,
             worldgen: WorldgenTags::deserialize_folder(format!("{path}/worldgen/").as_str())?,

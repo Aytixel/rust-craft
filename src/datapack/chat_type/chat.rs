@@ -2,10 +2,9 @@ mod style;
 
 use std::fmt::Debug;
 
-use datapack_macro::DeserializeFolder;
 use serde::Deserialize;
 
-#[derive(Deserialize, DeserializeFolder)]
+#[derive(Deserialize)]
 pub struct Chat {
     parameters: Vec<String>,
     style: Option<style::Style>,

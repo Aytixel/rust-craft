@@ -2,10 +2,10 @@ mod chat;
 
 use std::fmt::Debug;
 
-use datapack_macro::DeserializeFolder;
+use datapack_macro::DeserializeJsonFolder;
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize, DeserializeFolder)]
+#[derive(Debug, Deserialize, DeserializeJsonFolder)]
 pub struct ChatType {
     chat: chat::Chat,
     narration: chat::Chat,
@@ -19,7 +19,7 @@ mod tests {
     fn deserialize_folder() {
         println!(
             "{:#?}",
-            ChatType::deserialize_folder("./data/minecraft/chat_type/").unwrap()
+            ChatType::deserialize_json_folder("./data/minecraft/chat_type/").unwrap()
         );
     }
 }

@@ -1,9 +1,8 @@
 use std::fmt::Debug;
 
-use datapack_macro::DeserializeFolder;
 use serde::Deserialize;
 
-#[derive(Deserialize, DeserializeFolder)]
+#[derive(Deserialize)]
 pub struct Style {
     color: Option<String>,
     bold: Option<bool>,

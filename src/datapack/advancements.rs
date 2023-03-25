@@ -3,10 +3,10 @@ mod display;
 
 use std::{collections::HashMap, fmt::Debug};
 
-use datapack_macro::DeserializeFolder;
+use datapack_macro::DeserializeJsonFolder;
 use serde::Deserialize;
 
-#[derive(Deserialize, DeserializeFolder)]
+#[derive(Deserialize, DeserializeJsonFolder)]
 pub struct Advancement {
     parent: Option<String>,
     criteria: HashMap<String, criteria::Criteria>,
@@ -49,18 +49,20 @@ pub struct RecipesAdvancements {
 impl RecipesAdvancements {
     fn deserialize_folder(path: &str) -> Result<Self, String> {
         Ok(Self {
-            root: Advancement::deserialize_folder(path)?,
-            brewing: Advancement::deserialize_folder(format!("{path}/brewing/").as_str())?,
-            building_blocks: Advancement::deserialize_folder(
+            root: Advancement::deserialize_json_folder(path)?,
+            brewing: Advancement::deserialize_json_folder(format!("{path}/brewing/").as_str())?,
+            building_blocks: Advancement::deserialize_json_folder(
                 format!("{path}/building_blocks/").as_str(),
             )?,
-            combat: Advancement::deserialize_folder(format!("{path}/combat/").as_str())?,
-            decorations: Advancement::deserialize_folder(format!("{path}/decorations/").as_str())?,
-            food: Advancement::deserialize_folder(format!("{path}/food/").as_str())?,
-            misc: Advancement::deserialize_folder(format!("{path}/misc/").as_str())?,
-            redstone: Advancement::deserialize_folder(format!("{path}/redstone/").as_str())?,
-            tools: Advancement::deserialize_folder(format!("{path}/tools/").as_str())?,
-            transportation: Advancement::deserialize_folder(
+            combat: Advancement::deserialize_json_folder(format!("{path}/combat/").as_str())?,
+            decorations: Advancement::deserialize_json_folder(
+                format!("{path}/decorations/").as_str(),
+            )?,
+            food: Advancement::deserialize_json_folder(format!("{path}/food/").as_str())?,
+            misc: Advancement::deserialize_json_folder(format!("{path}/misc/").as_str())?,
+            redstone: Advancement::deserialize_json_folder(format!("{path}/redstone/").as_str())?,
+            tools: Advancement::deserialize_json_folder(format!("{path}/tools/").as_str())?,
+            transportation: Advancement::deserialize_json_folder(
                 format!("{path}/transportation/").as_str(),
             )?,
         })
@@ -80,12 +82,12 @@ pub struct Advancements {
 impl Advancements {
     pub fn deserialize_folder(path: &str) -> Result<Self, String> {
         Ok(Self {
-            adventure: Advancement::deserialize_folder(format!("{path}/adventure/").as_str())?,
-            end: Advancement::deserialize_folder(format!("{path}/end/").as_str())?,
-            husbandry: Advancement::deserialize_folder(format!("{path}/husbandry/").as_str())?,
-            nether: Advancement::deserialize_folder(format!("{path}/nether/").as_str())?,
+            adventure: Advancement::deserialize_json_folder(format!("{path}/adventure/").as_str())?,
+            end: Advancement::deserialize_json_folder(format!("{path}/end/").as_str())?,
+            husbandry: Advancement::deserialize_json_folder(format!("{path}/husbandry/").as_str())?,
+            nether: Advancement::deserialize_json_folder(format!("{path}/nether/").as_str())?,
             recipes: RecipesAdvancements::deserialize_folder(format!("{path}/recipes/").as_str())?,
-            story: Advancement::deserialize_folder(format!("{path}/story/").as_str())?,
+            story: Advancement::deserialize_json_folder(format!("{path}/story/").as_str())?,
         })
     }
 }
