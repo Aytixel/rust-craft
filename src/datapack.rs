@@ -3,6 +3,7 @@ mod chat_type;
 mod damage_type;
 mod dimension_type;
 mod items;
+mod loot_tables;
 mod recipes;
 mod structures;
 mod tags;
@@ -16,6 +17,7 @@ pub struct Datapack {
     chat_type: HashMap<String, chat_type::ChatType>,
     damage_type: HashMap<String, damage_type::DamageType>,
     dimension_type: HashMap<String, dimension_type::DimensionType>,
+    loot_tables: HashMap<String, loot_tables::LootTable>,
     recipes: HashMap<String, recipes::Recipes>,
     structures: HashMap<String, structures::Structure>,
     tags: HashMap<String, tags::Tag>,
@@ -33,6 +35,9 @@ impl Datapack {
             )?,
             dimension_type: dimension_type::DimensionType::deserialize_json_folder(
                 "./data/minecraft/dimension_type/",
+            )?,
+            loot_tables: loot_tables::LootTable::deserialize_json_folder(
+                "./data/minecraft/loot_tables/",
             )?,
             recipes: recipes::Recipes::deserialize_json_folder("./data/minecraft/recipes/")?,
             structures: structures::Structure::deserialize_nbt_folder(
