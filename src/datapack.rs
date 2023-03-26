@@ -1,9 +1,10 @@
 use std::fs::{self, read_dir};
 use std::io::BufReader;
+use std::thread::spawn;
 
-use hashbrown::hash_map::HashMap;
 use quartz_nbt::io::Flavor;
 use serde::Deserialize;
+use std::collections::HashMap;
 
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
@@ -28,21 +29,26 @@ impl Folder {
             folders: HashMap::new(),
             files: HashMap::new(),
         };
+        let mut folder_handle_vec = vec![];
 
         for file in read_dir(path).unwrap() {
             if let Ok(file) = file {
                 if file.file_type().unwrap().is_dir() {
-                    folder.folders.insert(
+                    let path = file.path();
+
+                    folder_handle_vec.push((
                         file.path()
                             .file_name()
                             .unwrap()
                             .to_str()
                             .unwrap()
                             .to_string(),
-                        Folder::deserialize_folder_(
-                            file.path().into_os_string().as_os_str().to_str().unwrap(),
-                        )?,
-                    );
+                        spawn(move || {
+                            Folder::deserialize_folder_(
+                                path.into_os_string().as_os_str().to_str().unwrap(),
+                            )
+                        }),
+                    ));
                 } else {
                     let file_name = file.file_name();
                     let file_name = file_name.to_str().unwrap();
@@ -66,6 +72,10 @@ impl Folder {
                     }
                 }
             }
+        }
+
+        for (name, folder_handle) in folder_handle_vec {
+            folder.folders.insert(name, folder_handle.join().unwrap()?);
         }
 
         Ok(folder)
