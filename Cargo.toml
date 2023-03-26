@@ -22,3 +22,4 @@ boring = "2.1.0"
 uuid = { version = "1.3.0", features = ["v3"] }
 datapack_macro = { path = "./datapack_macro" }
 quartz_nbt = { version = "0.2.6", features = ["serde"] }
+hashbrown = "0.13.2"

@@ -9,7 +9,7 @@ mod structures;
 mod tags;
 mod translate;
 
-use std::collections::HashMap;
+use hashbrown::hash_map::HashMap;
 
 #[derive(Debug)]
 pub struct Datapack {

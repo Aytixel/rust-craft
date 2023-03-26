@@ -15,17 +15,25 @@ fn impl_deserialize_json_folder_macro(ast: &DeriveInput) -> TokenStream {
     let name = &ast.ident;
     let gen = quote! {
         impl #name {
-            pub fn deserialize_json_folder(path: &str) -> Result<std::collections::HashMap<String, #name>, String>
+            pub fn deserialize_json_folder(path: &str) -> Result<hashbrown::hash_map::HashMap<String, #name>, String>
             {
-                let mut hashmap = std::collections::HashMap::new();
+                #name::deserialize_json_folder_(path, std::path::Path::new(path).file_name().unwrap().to_str().unwrap().to_string())
+            }
+
+            fn deserialize_json_folder_(path: &str, parent: String) -> Result<hashbrown::hash_map::HashMap<String, #name>, String> {
+                let mut hashmap = hashbrown::hash_map::HashMap::new();
+                let parent = parent + "/";
 
                 for file in std::fs::read_dir(path).unwrap() {
                     if let Ok(file) = file {
                         if file.file_type().unwrap().is_dir() {
-                            let path = file.path();
-                            let key_path = path.file_name().unwrap().to_str().unwrap();
-                            for (key, value) in #name::deserialize_json_folder(path.clone().into_os_string().as_os_str().to_str().unwrap())?.drain() {
-                                hashmap.insert(format!("{}/{}", key_path, key), value);
+                            for (key, value) in #name::deserialize_json_folder_(
+                                file.path().into_os_string().as_os_str().to_str().unwrap(),
+                                parent.clone() + file.path().file_name().unwrap().to_str().unwrap(),
+                            )?
+                            .drain()
+                            {
+                                hashmap.insert(key, value);
                             }
                         } else {
                             let file_name = file.file_name();
@@ -36,7 +44,7 @@ fn impl_deserialize_json_folder_macro(ast: &DeriveInput) -> TokenStream {
                                 let reader = std::io::BufReader::new(file);
 
                                 hashmap.insert(
-                                    file_name[..file_name.len() - 5].to_string(),
+                                    parent.clone() + &file_name[..file_name.len() - 5],
                                     serde_json::from_reader(reader).map_err(|e| e.to_string())?,
                                 );
                             }
@@ -63,17 +71,25 @@ fn impl_deserialize_nbt_folder_macro(ast: &DeriveInput) -> TokenStream {
     let name = &ast.ident;
     let gen = quote! {
         impl #name {
-            pub fn deserialize_nbt_folder(path: &str) -> Result<std::collections::HashMap<String, #name>, String>
+            pub fn deserialize_nbt_folder(path: &str) -> Result<hashbrown::hash_map::HashMap<String, #name>, String>
             {
-                let mut hashmap = std::collections::HashMap::new();
+                #name::deserialize_nbt_folder_(path, std::path::Path::new(path).file_name().unwrap().to_str().unwrap().to_string())
+            }
+
+            fn deserialize_nbt_folder_(path: &str, parent: String) -> Result<hashbrown::hash_map::HashMap<String, #name>, String> {
+                let mut hashmap = hashbrown::hash_map::HashMap::new();
+                let parent = parent + "/";
 
                 for file in std::fs::read_dir(path).unwrap() {
                     if let Ok(file) = file {
                         if file.file_type().unwrap().is_dir() {
-                            let path = file.path();
-                            let key_path = path.file_name().unwrap().to_str().unwrap();
-                            for (key, value) in #name::deserialize_nbt_folder(path.clone().into_os_string().as_os_str().to_str().unwrap())?.drain() {
-                                hashmap.insert(format!("{}/{}", key_path, key), value);
+                            for (key, value) in #name::deserialize_nbt_folder_(
+                                file.path().into_os_string().as_os_str().to_str().unwrap(),
+                                parent.clone() + file.path().file_name().unwrap().to_str().unwrap(),
+                            )?
+                            .drain()
+                            {
+                                hashmap.insert(key, value);
                             }
                         } else {
                             let file_name = file.file_name();
@@ -84,7 +100,7 @@ fn impl_deserialize_nbt_folder_macro(ast: &DeriveInput) -> TokenStream {
                                 let mut reader = std::io::BufReader::new(file);
 
                                 hashmap.insert(
-                                    file_name[..file_name.len() - 4].to_string(),
+                                    parent.clone() + &file_name[..file_name.len() - 4],
                                     quartz_nbt::serde::deserialize_from(
                                         &mut reader,
                                         quartz_nbt::io::Flavor::GzCompressed,
