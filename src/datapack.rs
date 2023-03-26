@@ -24,26 +24,30 @@ pub struct Datapack {
 }
 
 impl Datapack {
-    pub fn new() -> Result<Self, String> {
+    pub fn new(path: &str) -> Result<Self, String> {
         Ok(Self {
             advancements: advancements::Advancement::deserialize_json_folder(
-                "./data/minecraft/advancements/",
+                (path.to_string() + "/advancements/").as_str(),
             )?,
-            chat_type: chat_type::ChatType::deserialize_json_folder("./data/minecraft/chat_type/")?,
+            chat_type: chat_type::ChatType::deserialize_json_folder(
+                (path.to_string() + "/chat_type/").as_str(),
+            )?,
             damage_type: damage_type::DamageType::deserialize_json_folder(
-                "./data/minecraft/damage_type/",
+                (path.to_string() + "/damage_type/").as_str(),
             )?,
             dimension_type: dimension_type::DimensionType::deserialize_json_folder(
-                "./data/minecraft/dimension_type/",
+                (path.to_string() + "/dimension_type/").as_str(),
             )?,
             loot_tables: loot_tables::LootTable::deserialize_json_folder(
-                "./data/minecraft/loot_tables/",
+                (path.to_string() + "/loot_tables/").as_str(),
             )?,
-            recipes: recipes::Recipes::deserialize_json_folder("./data/minecraft/recipes/")?,
+            recipes: recipes::Recipes::deserialize_json_folder(
+                (path.to_string() + "/recipes/").as_str(),
+            )?,
             structures: structures::Structure::deserialize_nbt_folder(
-                "./data/minecraft/structures/",
+                (path.to_string() + "/structures/").as_str(),
             )?,
-            tags: tags::Tag::deserialize_json_folder("./data/minecraft/tags/")?,
+            tags: tags::Tag::deserialize_json_folder((path.to_string() + "/tags/").as_str())?,
         })
     }
 }
@@ -54,6 +58,6 @@ mod tests {
 
     #[test]
     fn new() {
-        println!("{:#?}", Datapack::new().unwrap());
+        println!("{:#?}", Datapack::new("./data/minecraft/").unwrap());
     }
 }

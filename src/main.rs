@@ -16,7 +16,7 @@ fn main() -> Result<(), String> {
     env_logger::init();
 
     let version_info = Rc::new(VersionInfo::new()?);
-    let datapack = Rc::new(Datapack::new()?);
+    let _datapack = Rc::new(Datapack::new("./data/minecraft/")?);
     let mut server = Server::new("0.0.0.0:25565", version_info)?;
 
     info!("Server listening on: 0.0.0.0:25565");
