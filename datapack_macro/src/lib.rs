@@ -21,10 +21,11 @@ fn impl_deserialize_json_folder_macro(ast: &DeriveInput) -> TokenStream {
 
                 for file in std::fs::read_dir(path).unwrap() {
                     if let Ok(file) = file {
-                        if (file.file_type().unwrap().is_dir()) {
-                            let mut path = file.path();
+                        if file.file_type().unwrap().is_dir() {
+                            let path = file.path();
+                            let key_path = path.file_name().unwrap().to_str().unwrap();
                             for (key, value) in #name::deserialize_json_folder(path.clone().into_os_string().as_os_str().to_str().unwrap())?.drain() {
-                                hashmap.insert(format!("{}/{}", path.file_name().unwrap().to_str().unwrap(), key), value);
+                                hashmap.insert(format!("{}/{}", key_path, key), value);
                             }
                         } else {
                             let file_name = file.file_name();
@@ -68,10 +69,11 @@ fn impl_deserialize_nbt_folder_macro(ast: &DeriveInput) -> TokenStream {
 
                 for file in std::fs::read_dir(path).unwrap() {
                     if let Ok(file) = file {
-                        if (file.file_type().unwrap().is_dir()) {
-                            let mut path = file.path();
+                        if file.file_type().unwrap().is_dir() {
+                            let path = file.path();
+                            let key_path = path.file_name().unwrap().to_str().unwrap();
                             for (key, value) in #name::deserialize_nbt_folder(path.clone().into_os_string().as_os_str().to_str().unwrap())?.drain() {
-                                hashmap.insert(format!("{}/{}", path.file_name().unwrap().to_str().unwrap(), key), value);
+                                hashmap.insert(format!("{}/{}", key_path, key), value);
                             }
                         } else {
                             let file_name = file.file_name();
@@ -79,12 +81,16 @@ fn impl_deserialize_nbt_folder_macro(ast: &DeriveInput) -> TokenStream {
 
                             if file_name.ends_with(".nbt") {
                                 let file = std::fs::File::open(file.path()).map_err(|e| e.to_string())?;
-                                let reader = std::io::BufReader::new(file);
-                                let mut decoder = flate2::read::GzDecoder::new(reader);
+                                let mut reader = std::io::BufReader::new(file);
 
                                 hashmap.insert(
                                     file_name[..file_name.len() - 4].to_string(),
-                                    fastnbt::from_reader(decoder).map_err(|e| e.to_string())?,
+                                    quartz_nbt::serde::deserialize_from(
+                                        &mut reader,
+                                        quartz_nbt::io::Flavor::GzCompressed,
+                                    )
+                                    .map_err(|e| e.to_string())?
+                                    .0,
                                 );
                             }
                         }

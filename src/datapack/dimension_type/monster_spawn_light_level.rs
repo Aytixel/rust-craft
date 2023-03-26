@@ -8,19 +8,10 @@ pub struct LightLevelRange {
     min_inclusive: u32,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct MonsterSpawnLightLevelRange {
     r#type: String,
     value: LightLevelRange,
-}
-
-impl Debug for MonsterSpawnLightLevelRange {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MonsterSpawnLightLevelRange")
-            .field("type", &self.r#type)
-            .field("value", &self.value)
-            .finish()
-    }
 }
 
 #[derive(Deserialize)]
