@@ -17,7 +17,7 @@ fn impl_deserialize_json_folder_macro(ast: &DeriveInput) -> TokenStream {
         impl #name {
             pub fn deserialize_json_folder(path: &str) -> Result<hashbrown::hash_map::HashMap<String, #name>, String>
             {
-                #name::deserialize_json_folder_(path, std::path::Path::new(path).file_name().unwrap().to_str().unwrap().to_string())
+                #name::deserialize_json_folder_(path, "".to_string())
             }
 
             fn deserialize_json_folder_(path: &str, parent: String) -> Result<hashbrown::hash_map::HashMap<String, #name>, String> {
@@ -73,7 +73,7 @@ fn impl_deserialize_nbt_folder_macro(ast: &DeriveInput) -> TokenStream {
         impl #name {
             pub fn deserialize_nbt_folder(path: &str) -> Result<hashbrown::hash_map::HashMap<String, #name>, String>
             {
-                #name::deserialize_nbt_folder_(path, std::path::Path::new(path).file_name().unwrap().to_str().unwrap().to_string())
+                #name::deserialize_nbt_folder_(path, "".to_string())
             }
 
             fn deserialize_nbt_folder_(path: &str, parent: String) -> Result<hashbrown::hash_map::HashMap<String, #name>, String> {
