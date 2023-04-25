@@ -2,7 +2,7 @@ use std::io::{ErrorKind, Read, Write};
 use std::net::{Shutdown, SocketAddr, TcpStream};
 use std::rc::Rc;
 
-use log::error;
+use log::{debug, error, info};
 use num::FromPrimitive;
 use uuid::Uuid;
 
@@ -48,6 +48,8 @@ impl Client {
 
         version_info: Rc<VersionInfo>,
     ) -> Result<Self, String> {
+        debug!("New tcp client: {socket_addr}");
+
         socket.set_nonblocking(true).map_err(|e| e.to_string())?;
 
         Ok(Self {
@@ -121,8 +123,13 @@ impl Client {
     }
 
     pub fn disconnect(&self) -> Result<(), String> {
-        self.socket
+        let result = self
+            .socket
             .shutdown(Shutdown::Both)
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string());
+
+        info!("End tcp client: {}", self.socket_addr);
+
+        result
     }
 }

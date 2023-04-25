@@ -52,24 +52,20 @@ impl Server {
 
     pub fn update(&mut self) -> Result<(), String> {
         match self.listener.accept() {
-            Ok((socket, socket_addr)) => {
-                debug!("New tcp client: {socket_addr}");
-
-                self.client_vec.push(
-                    match Client::new(
-                        socket,
-                        socket_addr,
-                        self.encryption_data.clone(),
-                        self.version_info.clone(),
-                    ) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            error!("Cannot create tcp client: {e}");
-                            return Ok(());
-                        }
-                    },
-                )
-            }
+            Ok((socket, socket_addr)) => self.client_vec.push(
+                match Client::new(
+                    socket,
+                    socket_addr,
+                    self.encryption_data.clone(),
+                    self.version_info.clone(),
+                ) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        error!("Cannot create tcp client: {e}");
+                        return Ok(());
+                    }
+                },
+            ),
             Err(ref e) if e.kind() == ErrorKind::WouldBlock => {}
             Err(e) => error!("Couldn't get tcp client: {e}"),
         }
