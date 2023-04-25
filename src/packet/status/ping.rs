@@ -17,6 +17,7 @@ impl PingPacket {
         client
             .send_packet(packet.clone())
             .map_err(|_| "Error sending PingPacket")?;
+        client.disconnect()?;
 
         Ok(())
     }
