@@ -1,12 +1,15 @@
 use std::rc::Rc;
 
+use aes::cipher::KeyIvInit;
 use boring::rsa::Padding;
+use cfb8::Encryptor;
 use log::debug;
 use serde_json::json;
 
-use crate::client::{Client, ClientState};
+use crate::client::{Aes, Client, ClientState};
 use crate::data_type::{FromByte, FromVarInt, Packet, ToString, ToVarInt};
 use crate::packet::login::{DisconnectPacket, LoginSuccessPacket, SetCompressionPacket};
+use crate::packet::play::LoginPacket;
 use crate::packet::ClientLoginPacketId;
 use crate::server::EncryptionData;
 
@@ -51,13 +54,26 @@ impl EncryptionPacket {
         client
             .send_packet(SetCompressionPacket::new())
             .map_err(|_| "Error sending SetCompressionPacket")?;
+
+        // enable compression and encryption
         client.compressed = true;
+        client.aes = Some(Aes {
+            encrypt: Encryptor::new_from_slices(
+                &encryption_packet.shared_secret,
+                &encryption_packet.shared_secret,
+            )
+            .map_err(|_| "Can't initilize Aes/CFB8 encrypter".to_string())?,
+        });
+
         client
             .send_packet(LoginSuccessPacket::new(
                 client.player_data.uuid,
                 client.player_data.username.clone(),
             ))
             .map_err(|_| "Error sending LoginSuccessPacket")?;
+        client
+            .send_packet(LoginPacket::new())
+            .map_err(|_| "Error sending LoginPacket")?;
 
         Ok(())
     }

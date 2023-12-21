@@ -2,11 +2,15 @@ use std::io::{ErrorKind, Read, Write};
 use std::net::{Shutdown, SocketAddr, TcpStream};
 use std::rc::Rc;
 
+use aes::cipher::AsyncStreamCipher;
+use aes::Aes128;
+use cfb8::Encryptor;
 use log::{debug, error, info};
 use num::FromPrimitive;
 use uuid::Uuid;
 
 use crate::data_type::Packet;
+use crate::datapack::Datapack;
 use crate::packet::handshake::HandshakePacket;
 use crate::packet::login::{EncryptionPacket, LoginStartPacket};
 use crate::packet::status::{PingPacket, StatusPacket};
@@ -29,6 +33,20 @@ pub struct PlayerData {
     pub uuid: Uuid,
 }
 
+pub struct Aes {
+    pub encrypt: Encryptor<Aes128>,
+}
+
+impl Aes {
+    pub fn encrypt(&self, buffer: Vec<u8>) -> Vec<u8> {
+        let mut buffer = buffer;
+
+        self.encrypt.clone().encrypt(&mut buffer);
+
+        buffer
+    }
+}
+
 pub struct Client {
     socket: TcpStream,
     pub socket_addr: SocketAddr,
@@ -36,8 +54,10 @@ pub struct Client {
     buffer: Vec<u8>,
     pub compressed: bool,
     pub encryption_data: Rc<EncryptionData>,
+    pub aes: Option<Aes>,
     pub version_info: Rc<VersionInfo>,
     pub player_data: Rc<PlayerData>,
+    datapack: Rc<Datapack>,
 }
 
 impl Client {
@@ -45,8 +65,8 @@ impl Client {
         socket: TcpStream,
         socket_addr: SocketAddr,
         encryption_data: Rc<EncryptionData>,
-
         version_info: Rc<VersionInfo>,
+        datapack: Rc<Datapack>,
     ) -> Result<Self, String> {
         debug!("New tcp client: {socket_addr}");
 
@@ -58,9 +78,11 @@ impl Client {
             state: ClientState::Handshake,
             buffer: vec![],
             compressed: false,
+            aes: None,
             encryption_data,
             version_info,
             player_data: Rc::new(PlayerData::default()),
+            datapack,
         })
     }
 
@@ -89,13 +111,26 @@ impl Client {
     }
 
     pub fn send_packet(&mut self, packet: Packet) -> Result<(), String> {
-        self.socket
-            .write_all(
-                &packet
-                    .try_into(self.compressed)
-                    .map_err(|e| e.to_string())?,
-            )
-            .map_err(|e| e.to_string())?;
+        if let Some(aes) = &self.aes {
+            self.socket
+                .write_all(
+                    &aes.encrypt(
+                        packet
+                            .try_into(self.compressed)
+                            .map_err(|e| e.to_string())?,
+                    ),
+                )
+                .map_err(|e| e.to_string())?;
+        } else {
+            self.socket
+                .write_all(
+                    &packet
+                        .try_into(self.compressed)
+                        .map_err(|e| e.to_string())?,
+                )
+                .map_err(|e| e.to_string())?;
+        }
+
         self.socket.flush().map_err(|e| e.to_string())?;
 
         Ok(())

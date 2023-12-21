@@ -2,7 +2,7 @@ use std::io::ErrorKind;
 use std::net::TcpListener;
 use std::rc::Rc;
 
-use crate::{client::Client, version_info::VersionInfo};
+use crate::{client::Client, datapack::Datapack, version_info::VersionInfo};
 use boring::pkey::Private;
 use boring::rsa::Rsa;
 use log::{debug, error};
@@ -34,10 +34,15 @@ pub struct Server {
     client_vec: Vec<Client>,
     encryption_data: Rc<EncryptionData>,
     version_info: Rc<VersionInfo>,
+    datapack: Rc<Datapack>,
 }
 
 impl Server {
-    pub fn new(address: &'static str, version_info: Rc<VersionInfo>) -> Result<Self, String> {
+    pub fn new(
+        address: &'static str,
+        version_info: Rc<VersionInfo>,
+        datapack: Rc<Datapack>,
+    ) -> Result<Self, String> {
         let listener = TcpListener::bind(address).map_err(|e| e.to_string())?;
 
         listener.set_nonblocking(true).map_err(|e| e.to_string())?;
@@ -47,6 +52,7 @@ impl Server {
             client_vec: vec![],
             encryption_data: Rc::new(EncryptionData::new()),
             version_info,
+            datapack,
         })
     }
 
@@ -58,6 +64,7 @@ impl Server {
                     socket_addr,
                     self.encryption_data.clone(),
                     self.version_info.clone(),
+                    self.datapack.clone(),
                 ) {
                     Ok(v) => v,
                     Err(e) => {
