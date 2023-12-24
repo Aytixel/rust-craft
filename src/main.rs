@@ -1,15 +1,34 @@
-mod connection;
-mod version;
-
-use version::Version;
+pub mod connection;
+pub mod data_type;
+pub mod version;
 
 use anyhow::Result;
+use async_ctrlc::CtrlC;
+use log::info;
+
+use crate::{
+    connection::{Config, Server},
+    version::Version,
+};
 
 #[async_std::main]
 async fn main() -> Result<()> {
-    let version = Version::new().await?;
+    env_logger::init();
 
-    println!("{:#?}", version);
+    let version = Version::new().await?;
+    let server_config = Config::default();
+    let mut server = Server::new("0.0.0.0:25565".to_string(), server_config).await?;
+
+    info!("{:#?}", version);
+
+    server.start().await?;
+
+    CtrlC::new()?.await;
+
+    server.stop().await;
+    server.disconnect().await;
+
+    info!("Server shutdown");
 
     Ok(())
 }
