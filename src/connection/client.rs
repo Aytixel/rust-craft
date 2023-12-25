@@ -12,12 +12,21 @@ use async_std::{
 };
 use futures::{io::WriteHalf, AsyncReadExt};
 use log::debug;
+use packet::Packet;
 
-use crate::data_type::Packet;
+use crate::packet::client::handshake::Handshake;
 
 use super::Config;
 
+pub enum ClientState {
+    Handshake,
+    Status,
+    Login,
+    Play,
+}
+
 pub struct Client {
+    client_state: ClientState,
     config_arc: Arc<Config>,
     compressed_atomic: Arc<AtomicBool>,
     socket_addr: SocketAddr,
@@ -45,15 +54,20 @@ impl Client {
                     buffer.extend(&tmp_buffer[..length]);
 
                     while let Ok(packet) =
-                        Packet::try_from(&mut buffer, compressed_atomic.load(Ordering::Relaxed))
+                        Packet::from_bytes(&mut buffer, compressed_atomic.load(Ordering::Relaxed))
                     {
                         debug!("{} : {:?}", socket_addr, packet);
+
+                        let handshake = Handshake::try_from(packet);
+
+                        debug!("{} : {:?}", socket_addr, handshake);
                     }
                 }
             }
         });
 
         Self {
+            client_state: ClientState::Handshake,
             config_arc,
             compressed_atomic,
             socket_addr,

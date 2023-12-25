@@ -17,3 +17,6 @@ pub use string::*;
 pub use uuid::*;
 pub use varint::*;
 pub use varlong::*;
+
+pub use anyhow::Error;
+pub use macro_packet::*;

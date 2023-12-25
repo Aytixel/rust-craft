@@ -1,5 +1,5 @@
 pub mod connection;
-pub mod data_type;
+pub mod packet;
 pub mod version;
 
 use anyhow::Result;

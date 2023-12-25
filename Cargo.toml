@@ -5,6 +5,9 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[workspace]
+members = ["packet", "macro_packet"]
+
 [dependencies]
 log = "0.4.20"
 env_logger = "0.10.1"
@@ -22,4 +25,5 @@ futures = "0.3.29"
 async-ctrlc = "1.2.0"
 anyhow = "1.0.76"
 slab = "0.4.9"
-flate2 = "1.0.28"
+
+packet = { path = "packet" }

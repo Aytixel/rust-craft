@@ -11,7 +11,7 @@ impl FromUuid for Vec<u8> {
             return Err(anyhow!("Not enough data to parse Uuid"));
         }
 
-        let uuid = Uuid::from_slice(&self[..16]).map_err(|error| anyhow!("{error}"))?;
+        let uuid = Uuid::from_slice(&self[..16])?;
 
         self.drain(..16);
 

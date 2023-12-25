@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Ok, Result};
 use flate2::{write::ZlibDecoder, write::ZlibEncoder, Compression};
 
 use super::{varint::FromVarInt, ToVarInt};
@@ -16,7 +16,7 @@ impl Packet {
         Self { id, data }
     }
 
-    pub fn try_from(data: &mut Vec<u8>, compressed: bool) -> Result<Self> {
+    pub fn from_bytes(data: &mut Vec<u8>, compressed: bool) -> Result<Self> {
         if data.len() == 0 {
             return Err(anyhow!("No data to parse packet"));
         }
@@ -39,9 +39,7 @@ impl Packet {
             if data_lenth == 0 {
                 data_copy.drain(0..packet_length).collect()
             } else {
-                ZlibDecoder::new(data_copy.drain(0..packet_length).collect())
-                    .finish()
-                    .map_err(|error| anyhow!("{error}"))?
+                ZlibDecoder::new(data_copy.drain(0..packet_length).collect()).finish()?
             }
         } else {
             data_copy.drain(0..packet_length).collect()
@@ -61,11 +59,7 @@ impl Packet {
         Ok(packet)
     }
 
-    pub fn try_into(
-        mut self,
-        compressed: bool,
-        compression_threshold: usize,
-    ) -> Result<Vec<u8>, String> {
+    pub fn into_bytes(mut self, compressed: bool, compression_threshold: usize) -> Result<Vec<u8>> {
         let mut buffer = vec![];
 
         buffer.append(&mut self.id.to_varint());
@@ -77,8 +71,8 @@ impl Packet {
             let data_length = buffer.len();
             let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
 
-            encoder.write_all(&buffer).map_err(|e| e.to_string())?;
-            buffer = encoder.finish().map_err(|e| e.to_string())?;
+            encoder.write_all(&buffer)?;
+            buffer = encoder.finish()?;
 
             result_buffer.append(&mut (buffer.len() as i32).to_varint());
             result_buffer.append(&mut (data_length as i32).to_varint());
