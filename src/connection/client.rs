@@ -22,6 +22,7 @@ pub enum ClientState {
     Handshake,
     Status,
     Login,
+    Configuration,
     Play,
 }
 
@@ -58,7 +59,7 @@ impl Client {
                     {
                         debug!("{} : {:?}", socket_addr, packet);
 
-                        let handshake = Handshake::try_from(packet);
+                        let handshake = Handshake::try_from(packet).unwrap();
 
                         debug!("{} : {:?}", socket_addr, handshake);
                     }

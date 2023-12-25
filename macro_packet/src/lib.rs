@@ -2,7 +2,9 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::{quote, ToTokens};
-use syn::{parse_macro_input, spanned::Spanned, Error, Fields, ItemStruct};
+use syn::{
+    parse_macro_input, spanned::Spanned, Attribute, Error, Fields, ItemStruct, Meta, MetaList,
+};
 
 #[proc_macro_derive(DeserializePacket, attributes(variable))]
 pub fn deserialize_packet(input: TokenStream) -> TokenStream {
@@ -15,11 +17,14 @@ pub fn deserialize_packet(input: TokenStream) -> TokenStream {
 
         for input_struct_field in input_struct_fields.named {
             let field_type = input_struct_field.ty.to_token_stream().to_string();
-            let variable = Some("#[variable]".to_string())
-                == input_struct_field
-                    .attrs
-                    .get(0)
-                    .map(|attr| attr.to_token_stream().to_string());
+            let mut variable = false;
+
+            for attr in input_struct_field.attrs {
+                if "#[variable]".to_string() == attr.to_token_stream().to_string() {
+                    variable = true;
+                    break;
+                }
+            }
 
             fields_name.push(input_struct_field.ident);
 
@@ -63,8 +68,95 @@ pub fn deserialize_packet(input: TokenStream) -> TokenStream {
 
         quote
     } else {
-        Error::new(input_struct_span, "Use #[packet] only on structs").into_compile_error()
+        Error::new(input_struct_span, "Use only on structs").into_compile_error()
     };
+
+    TokenStream::from(quote)
+}
+
+#[proc_macro_derive(SerializePacket, attributes(variable, id))]
+pub fn serialize_packet(input: TokenStream) -> TokenStream {
+    let input_struct = parse_macro_input!(input as ItemStruct);
+    let mut id = quote!(0);
+
+    for attr in input_struct.attrs.iter() {
+        if let Attribute {
+            meta: Meta::List(MetaList { path, tokens, .. }),
+            ..
+        } = attr
+        {
+            if path.to_token_stream().to_string() == "id" {
+                id = tokens.clone();
+                break;
+            }
+        }
+    }
+
+    let input_struct_span = input_struct.span();
+    let input_struct_ident = input_struct.ident;
+    let quote = if let Fields::Named(input_struct_fields) = input_struct.fields {
+        let mut fields = Vec::new();
+
+        for input_struct_field in input_struct_fields.named {
+            let field_type = input_struct_field.ty.to_token_stream().to_string();
+            let mut variable = false;
+
+            for attr in input_struct_field.attrs {
+                if "#[variable]".to_string() == attr.to_token_stream().to_string() {
+                    variable = true;
+                    break;
+                }
+            }
+
+            let field_name = input_struct_field.ident;
+
+            match field_type.as_str() {
+                "bool" => fields.push(quote! { packet.#field_name.to_bytes() != 0 }),
+                "i8" => fields.push(quote! { packet.#field_name.to_bytes() }),
+                "u8" => fields.push(quote! { (packet.#field_name as i8).to_bytes() }),
+                "i16" => fields.push(quote! { packet.#field_name.to_short() }),
+                "u16" => fields.push(quote! { (packet.#field_name as i16).to_short() }),
+                "i32" => fields.push(if variable {
+                    quote! { packet.#field_name.to_varint() }
+                } else {
+                    quote! { packet.#field_name.to_int() }
+                }),
+                "u32" => fields.push(quote! { (packet.#field_name as i32).to_int() }),
+                "i64" => fields.push(if variable {
+                    quote! { packet.#field_name.to_varlong() }
+                } else {
+                    quote! { packet.#field_name.to_long() }
+                }),
+                "u64" => fields.push(quote! { (packet.#field_name as i64).to_long() }),
+                "String" => fields.push(quote! { packet.#field_name.to_packet_string() }),
+                "Uuid" => fields.push(quote! { packet.#field_name.to_uuid() }),
+                _ => fields.push(quote! { Default::Default() }),
+            }
+        }
+
+        let quote = quote! {
+            impl From<#input_struct_ident> for packet::Packet {
+                fn from(mut packet: #input_struct_ident) -> Self {
+                    use packet::{ToByte, ToShort, ToInt, ToLong, ToString, ToUuid, ToVarInt, ToVarLong};
+
+                    let mut data: Vec<u8> = Vec::new();
+
+                    #( data.append(&mut #fields); )*
+
+                    Self {
+                        id: #id,
+                        data,
+                    }
+                }
+            }
+        };
+
+        quote
+    } else {
+        Error::new(input_struct_span, "Use only on structs").into_compile_error()
+    };
+
+    println!("{}", quote);
 
     TokenStream::from(quote)
 }
