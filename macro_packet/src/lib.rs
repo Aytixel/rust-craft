@@ -157,8 +157,6 @@ pub fn serialize_packet(item: TokenStream) -> TokenStream {
         Error::new(item_struct_span, "Use only on structs").into_compile_error()
     };
 
-    println!("{}", quote);
-
     TokenStream::from(quote)
 }
 
@@ -174,7 +172,10 @@ pub fn packet_enum(item: TokenStream) -> TokenStream {
     let mut item_struct = TokenStream::new();
     let mut items_struct = Vec::new();
     let mut items_struct_name = Vec::new();
-    let mut items_struct_id = Vec::new();
+    let mut deserialize_items_struct_name = Vec::new();
+    let mut deserialize_items_struct_id = Vec::new();
+    let mut serialize_items_struct_name = Vec::new();
+    let mut serialize_items_struct_id = Vec::new();
 
     for item in item_iter {
         item_struct.extend([item.clone()]);
@@ -201,7 +202,44 @@ pub fn packet_enum(item: TokenStream) -> TokenStream {
                     }
                 }
 
-                items_struct_id.push(id);
+                for attr in tmp_item_struct.attrs.iter() {
+                    if let Attribute {
+                        meta: Meta::List(MetaList { path, tokens, .. }),
+                        ..
+                    } = attr
+                    {
+                        if path.to_token_stream().to_string() == "derive"
+                            && tokens
+                                .clone()
+                                .into_iter()
+                                .any(|token| token.to_string() == "DeserializePacket")
+                        {
+                            deserialize_items_struct_id.push(id.clone());
+                            deserialize_items_struct_name.push(tmp_item_struct.ident.clone());
+                            break;
+                        }
+                    }
+                }
+
+                for attr in tmp_item_struct.attrs.iter() {
+                    if let Attribute {
+                        meta: Meta::List(MetaList { path, tokens, .. }),
+                        ..
+                    } = attr
+                    {
+                        if path.to_token_stream().to_string() == "derive"
+                            && tokens
+                                .clone()
+                                .into_iter()
+                                .any(|token| token.to_string() == "SerializePacket")
+                        {
+                            serialize_items_struct_id.push(id);
+                            serialize_items_struct_name.push(tmp_item_struct.ident.clone());
+                            break;
+                        }
+                    }
+                }
+
                 items_struct_name.push(tmp_item_struct.ident.clone());
                 items_struct.push(tmp_item_struct);
             }
@@ -219,16 +257,25 @@ pub fn packet_enum(item: TokenStream) -> TokenStream {
 
             fn try_from(packet: packet::Packet) -> Result<Self, Self::Error> {
                 match packet.id {
-                    #( #items_struct_id => Ok(#ident::#items_struct_name(#items_struct_name::try_from(packet)?)), )*
+                    #( #deserialize_items_struct_id => Ok(#ident::#deserialize_items_struct_name(#deserialize_items_struct_name::try_from(packet)?)), )*
                     _ => Err(Self::Error::msg(format!("No packet matching id : {}", packet.id)))
+                }
+            }
+        }
+
+        impl TryFrom<#ident> for packet::Packet {
+            type Error = packet::Error;
+
+            fn try_from(packet: #ident) -> Result<Self, Self::Error> {
+                match packet {
+                    #( #ident::#serialize_items_struct_name(packet) => Ok(packet::Packet::from(packet)), )*
+                    _ => Err(Self::Error::msg("You can't serialize this packet"))
                 }
             }
         }
 
         #( #items_struct )*
     };
-
-    println!("{quote}");
 
     TokenStream::from(quote)
 }
