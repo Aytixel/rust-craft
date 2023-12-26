@@ -14,7 +14,7 @@ use futures::{io::WriteHalf, AsyncReadExt};
 use log::debug;
 use packet::Packet;
 
-use crate::packet::client::handshake::Handshake;
+use crate::packet::ClientHandshake;
 
 use super::Config;
 
@@ -58,10 +58,11 @@ impl Client {
                         Packet::from_bytes(&mut buffer, compressed_atomic.load(Ordering::Relaxed))
                     {
                         debug!("{} : {:?}", socket_addr, packet);
-
-                        let handshake = Handshake::try_from(packet).unwrap();
-
-                        debug!("{} : {:?}", socket_addr, handshake);
+                        debug!(
+                            "{} : {:?}",
+                            socket_addr,
+                            ClientHandshake::try_from(packet).unwrap()
+                        );
                     }
                 }
             }

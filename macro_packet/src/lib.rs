@@ -1,32 +1,33 @@
 extern crate proc_macro;
 
-use proc_macro::TokenStream;
+use proc_macro::{Delimiter, Span, TokenStream, TokenTree};
 use quote::{quote, ToTokens};
 use syn::{
-    parse_macro_input, spanned::Spanned, Attribute, Error, Fields, ItemStruct, Meta, MetaList,
+    parse_macro_input, spanned::Spanned, Attribute, Error, Fields, Ident, ItemStruct, Meta,
+    MetaList,
 };
 
-#[proc_macro_derive(DeserializePacket, attributes(variable))]
-pub fn deserialize_packet(input: TokenStream) -> TokenStream {
-    let input_struct = parse_macro_input!(input as ItemStruct);
-    let input_struct_span = input_struct.span();
-    let input_struct_ident = input_struct.ident;
-    let quote = if let Fields::Named(input_struct_fields) = input_struct.fields {
+#[proc_macro_derive(DeserializePacket, attributes(variable, id))]
+pub fn deserialize_packet(item: TokenStream) -> TokenStream {
+    let item_struct = parse_macro_input!(item as ItemStruct);
+    let item_struct_span = item_struct.span();
+    let item_struct_ident = item_struct.ident;
+    let quote = if let Fields::Named(item_struct_fields) = item_struct.fields {
         let mut fields_name = Vec::new();
         let mut fields_value = Vec::new();
 
-        for input_struct_field in input_struct_fields.named {
-            let field_type = input_struct_field.ty.to_token_stream().to_string();
+        for item_struct_field in item_struct_fields.named {
+            let field_type = item_struct_field.ty.to_token_stream().to_string();
             let mut variable = false;
 
-            for attr in input_struct_field.attrs {
+            for attr in item_struct_field.attrs {
                 if "#[variable]".to_string() == attr.to_token_stream().to_string() {
                     variable = true;
                     break;
                 }
             }
 
-            fields_name.push(input_struct_field.ident);
+            fields_name.push(item_struct_field.ident);
 
             match field_type.as_str() {
                 "bool" => fields_value.push(quote! { packet.data.from_bytes()? != 0 }),
@@ -53,7 +54,7 @@ pub fn deserialize_packet(input: TokenStream) -> TokenStream {
         }
 
         let quote = quote! {
-            impl TryFrom<packet::Packet> for #input_struct_ident {
+            impl TryFrom<packet::Packet> for #item_struct_ident {
                 type Error = packet::Error;
 
                 fn try_from(mut packet: packet::Packet) -> Result<Self, Self::Error> {
@@ -68,18 +69,18 @@ pub fn deserialize_packet(input: TokenStream) -> TokenStream {
 
         quote
     } else {
-        Error::new(input_struct_span, "Use only on structs").into_compile_error()
+        Error::new(item_struct_span, "Use only on structs").into_compile_error()
     };
 
     TokenStream::from(quote)
 }
 
 #[proc_macro_derive(SerializePacket, attributes(variable, id))]
-pub fn serialize_packet(input: TokenStream) -> TokenStream {
-    let input_struct = parse_macro_input!(input as ItemStruct);
+pub fn serialize_packet(item: TokenStream) -> TokenStream {
+    let item_struct = parse_macro_input!(item as ItemStruct);
     let mut id = quote!(0);
 
-    for attr in input_struct.attrs.iter() {
+    for attr in item_struct.attrs.iter() {
         if let Attribute {
             meta: Meta::List(MetaList { path, tokens, .. }),
             ..
@@ -92,23 +93,23 @@ pub fn serialize_packet(input: TokenStream) -> TokenStream {
         }
     }
 
-    let input_struct_span = input_struct.span();
-    let input_struct_ident = input_struct.ident;
-    let quote = if let Fields::Named(input_struct_fields) = input_struct.fields {
+    let item_struct_span = item_struct.span();
+    let item_struct_ident = item_struct.ident;
+    let quote = if let Fields::Named(item_struct_fields) = item_struct.fields {
         let mut fields = Vec::new();
 
-        for input_struct_field in input_struct_fields.named {
-            let field_type = input_struct_field.ty.to_token_stream().to_string();
+        for item_struct_field in item_struct_fields.named {
+            let field_type = item_struct_field.ty.to_token_stream().to_string();
             let mut variable = false;
 
-            for attr in input_struct_field.attrs {
+            for attr in item_struct_field.attrs {
                 if "#[variable]".to_string() == attr.to_token_stream().to_string() {
                     variable = true;
                     break;
                 }
             }
 
-            let field_name = input_struct_field.ident;
+            let field_name = item_struct_field.ident;
 
             match field_type.as_str() {
                 "bool" => fields.push(quote! { packet.#field_name.to_bytes() != 0 }),
@@ -135,8 +136,8 @@ pub fn serialize_packet(input: TokenStream) -> TokenStream {
         }
 
         let quote = quote! {
-            impl From<#input_struct_ident> for packet::Packet {
-                fn from(mut packet: #input_struct_ident) -> Self {
+            impl From<#item_struct_ident> for packet::Packet {
+                fn from(mut packet: #item_struct_ident) -> Self {
                     use packet::{ToByte, ToShort, ToInt, ToLong, ToString, ToUuid, ToVarInt, ToVarLong};
 
                     let mut data: Vec<u8> = Vec::new();
@@ -153,10 +154,81 @@ pub fn serialize_packet(input: TokenStream) -> TokenStream {
 
         quote
     } else {
-        Error::new(input_struct_span, "Use only on structs").into_compile_error()
+        Error::new(item_struct_span, "Use only on structs").into_compile_error()
     };
 
     println!("{}", quote);
+
+    TokenStream::from(quote)
+}
+
+#[proc_macro]
+pub fn packet_enum(item: TokenStream) -> TokenStream {
+    let mut item_iter = item.into_iter();
+    let ident = item_iter.next().map(TokenStream::from).unwrap_or_else(|| {
+        Error::new(Span::call_site().into(), "No enum name")
+            .into_compile_error()
+            .into()
+    });
+    let ident = parse_macro_input!(ident as Ident);
+    let mut item_struct = TokenStream::new();
+    let mut items_struct = Vec::new();
+    let mut items_struct_name = Vec::new();
+    let mut items_struct_id = Vec::new();
+
+    for item in item_iter {
+        item_struct.extend([item.clone()]);
+
+        if let TokenTree::Group(group) = item {
+            if group.delimiter() == Delimiter::Brace {
+                let tmp_item_struct = item_struct.clone();
+
+                item_struct = TokenStream::new();
+
+                let tmp_item_struct = parse_macro_input!(tmp_item_struct as ItemStruct);
+                let mut id = quote!(0);
+
+                for attr in tmp_item_struct.attrs.iter() {
+                    if let Attribute {
+                        meta: Meta::List(MetaList { path, tokens, .. }),
+                        ..
+                    } = attr
+                    {
+                        if path.to_token_stream().to_string() == "id" {
+                            id = tokens.clone();
+                            break;
+                        }
+                    }
+                }
+
+                items_struct_id.push(id);
+                items_struct_name.push(tmp_item_struct.ident.clone());
+                items_struct.push(tmp_item_struct);
+            }
+        }
+    }
+
+    let quote = quote! {
+        #[derive(Debug)]
+        pub enum #ident {
+            #( #items_struct_name(#items_struct_name), )*
+        }
+
+        impl TryFrom<packet::Packet> for #ident {
+            type Error = packet::Error;
+
+            fn try_from(packet: packet::Packet) -> Result<Self, Self::Error> {
+                match packet.id {
+                    #( #items_struct_id => Ok(#ident::#items_struct_name(#items_struct_name::try_from(packet)?)), )*
+                    _ => Err(Self::Error::msg(format!("No packet matching id : {}", packet.id)))
+                }
+            }
+        }
+
+        #( #items_struct )*
+    };
+
+    println!("{quote}");
 
     TokenStream::from(quote)
 }
