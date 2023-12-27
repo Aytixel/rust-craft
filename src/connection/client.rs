@@ -1,4 +1,5 @@
 use std::{
+    io::ErrorKind,
     net::SocketAddr,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -7,12 +8,12 @@ use std::{
 };
 
 use async_std::{
-    io::ReadExt,
+    io::{timeout, ReadExt},
     net::TcpStream,
     task::{self, JoinHandle},
 };
 use futures_lite::io::{split, WriteHalf};
-use log::{debug, error};
+use log::{debug, error, warn};
 use packet::Packet;
 use try_catch::catch;
 
@@ -69,9 +70,29 @@ impl Client {
                 let mut buffer: Vec<u8> = Vec::new();
                 let mut tmp_buffer = vec![0; 1024];
 
-                'main: while let Ok(length) = read_stream.read(&mut tmp_buffer).await {
+                'main: loop {
+                    let length = match timeout(
+                        config_arc.timeout,
+                        read_stream.read(&mut tmp_buffer),
+                    )
+                    .await
+                    {
+                        Ok(length) => length,
+                        Err(error) => {
+                            if let ErrorKind::TimedOut = error.kind() {
+                                warn!("{socket_addr} : Connection timedout");
+                            }
+
+                            running_atomic.store(false, Ordering::Relaxed);
+                            break 'main;
+                        }
+                    };
+
                     if length == 0 {
-                        break;
+                        warn!("{socket_addr} : Connection closed");
+
+                        running_atomic.store(false, Ordering::Relaxed);
+                        break 'main;
                     }
 
                     buffer.extend(&tmp_buffer[..length]);

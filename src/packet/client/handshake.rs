@@ -2,7 +2,7 @@ use packet::{packet_enum, DeserializePacket};
 
 packet_enum! { ClientHandshake
     #[derive(Debug, DeserializePacket)]
-    #[id(0)]
+    #[id(0x00)]
     pub struct Handshake {
         #[variable]
         pub protocol_version: i32,
