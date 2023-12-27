@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 flate2 = "1.0.28"
-anyhow = "1.0.76"
+anyhow = "1.0.77"
 uuid = { version = "1.6.1", features = ["v3"] }
 
 macro_packet = { path = "../macro_packet" }

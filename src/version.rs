@@ -6,7 +6,7 @@ use serde_json::Value;
 pub struct Version {
     pub id: String,
     pub name: String,
-    pub protocol: u32,
+    pub protocol: i32,
     pub world_version: u32,
     pub resource_pack_version: u32,
     pub datapack_version: u32,
@@ -31,7 +31,7 @@ impl Version {
         Ok(Self {
             id: to_err(version_file["id"].as_str())?.to_string(),
             name: to_err(version_file["name"].as_str())?.to_string(),
-            protocol: to_err(version_file["protocol_version"].as_u64())? as u32,
+            protocol: to_err(version_file["protocol_version"].as_i64())? as i32,
             world_version: to_err(version_file["world_version"].as_u64())? as u32,
             resource_pack_version: to_err(version_file["pack_version"]["resource"].as_u64())?
                 as u32,

@@ -16,10 +16,11 @@ async fn main() -> Result<()> {
     env_logger::init();
 
     let version = Version::new().await?;
-    let server_config = Config::default();
-    let mut server = Server::new("0.0.0.0:25565".to_string(), server_config).await?;
+    let config = Config::new(version);
 
-    info!("{:#?}", version);
+    info!("{:#?}", config);
+
+    let mut server = Server::new("0.0.0.0:25565".to_string(), config).await?;
 
     server.start().await?;
 

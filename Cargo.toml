@@ -18,9 +18,9 @@ boring = "4.2.0"
 uuid = { version = "1.6.1", features = ["v3"] }
 quartz_nbt = "0.2.8"
 async-std = { version = "1.12.0", features = ["attributes"] }
-futures = "0.3.29"
+futures-lite = "2.1.0"
 async-ctrlc = "1.2.0"
-anyhow = "1.0.76"
-slab = "0.4.9"
+anyhow = "1.0.77"
+try-catch = "0.2.2"
 
 packet = { path = "packet" }
