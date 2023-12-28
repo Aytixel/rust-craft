@@ -30,9 +30,9 @@ pub fn deserialize_packet(item: TokenStream) -> TokenStream {
             fields_name.push(item_struct_field.ident);
 
             match field_type.as_str() {
-                "bool" => fields_value.push(quote! { packet.data.from_bytes()? != 0 }),
-                "i8" => fields_value.push(quote! { packet.data.from_bytes()? }),
-                "u8" => fields_value.push(quote! { packet.data.from_bytes()? as u8 }),
+                "bool" => fields_value.push(quote! { packet.data.from_byte()? != 0 }),
+                "i8" => fields_value.push(quote! { packet.data.from_byte()? }),
+                "u8" => fields_value.push(quote! { packet.data.from_byte()? as u8 }),
                 "i16" => fields_value.push(quote! { packet.data.from_short()? }),
                 "u16" => fields_value.push(quote! { packet.data.from_short()? as u16 }),
                 "i32" => fields_value.push(if variable {
@@ -112,9 +112,9 @@ pub fn serialize_packet(item: TokenStream) -> TokenStream {
             let field_name = item_struct_field.ident;
 
             match field_type.as_str() {
-                "bool" => fields.push(quote! { packet.#field_name.to_bytes() != 0 }),
-                "i8" => fields.push(quote! { packet.#field_name.to_bytes() }),
-                "u8" => fields.push(quote! { (packet.#field_name as i8).to_bytes() }),
+                "bool" => fields.push(quote! { packet.#field_name.to_byte() != 0 }),
+                "i8" => fields.push(quote! { packet.#field_name.to_byte() }),
+                "u8" => fields.push(quote! { (packet.#field_name as i8).to_byte() }),
                 "i16" => fields.push(quote! { packet.#field_name.to_short() }),
                 "u16" => fields.push(quote! { (packet.#field_name as i16).to_short() }),
                 "i32" => fields.push(if variable {
