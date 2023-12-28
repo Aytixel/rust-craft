@@ -151,6 +151,8 @@ impl Client {
                         }
 
                         if !running_atomic.load(Ordering::Relaxed) {
+                            warn!("{socket_addr} : Connection closed");
+
                             break 'main;
                         }
                     }

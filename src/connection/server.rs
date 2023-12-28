@@ -50,22 +50,21 @@ impl Server {
                     Err(error) => debug!("Error accepting a new connection : {error}"),
                 }
 
-                let mut client_vec: Vec<Client> =
-                    { client_vec_mutex.lock().await.drain(..).collect() };
-                let mut index = 0;
+                {
+                    let mut client_vec = client_vec_mutex.lock().await;
+                    let mut index = 0;
 
-                while let Some(client) = client_vec.get(index) {
-                    if !client.running_atomic.load(Ordering::Relaxed) {
-                        client_vec.remove(index).disconnect().await;
-                        continue;
+                    while let Some(client) = client_vec.get(index) {
+                        if !client.running_atomic.load(Ordering::Relaxed) {
+                            client_vec.remove(index).disconnect().await;
+                            continue;
+                        }
+
+                        index += 1;
                     }
 
-                    index += 1;
+                    debug!("Client connection count : {}", client_vec.len());
                 }
-
-                debug!("Client connection count : {}", client_vec.len());
-
-                client_vec_mutex.lock().await.extend(client_vec);
             }
         }));
 
