@@ -3,7 +3,7 @@ use std::{
     net::SocketAddr,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Weak,
+        Arc, Barrier, Weak,
     },
 };
 
@@ -11,13 +11,12 @@ use async_std::{
     channel::{unbounded, Sender},
     io::{timeout, ReadExt, WriteExt},
     net::TcpStream,
-    sync::RwLock,
     task::{self, JoinHandle},
 };
-use epicenter::AsyncDispatcher;
 use futures_lite::{io::split, Future};
 use log::{debug, error, warn};
 use packet::Packet;
+use stopper::Stopper;
 
 use crate::{
     connection::PacketEvent,
@@ -27,7 +26,7 @@ use crate::{
     },
 };
 
-use super::Config;
+use super::{Config, EventDispatcher};
 
 enum ClientState {
     Handshake,
@@ -50,11 +49,11 @@ impl From<u8> for ClientState {
 }
 
 pub struct Client {
-    pub client_weak: Weak<Client>,
     pub socket_addr: SocketAddr,
     pub config_arc: Arc<Config>,
-    handle: (JoinHandle<()>, JoinHandle<()>),
-    pub running_atomic: Arc<AtomicBool>,
+    disconnect_sender: Sender<SocketAddr>,
+    handle_option: Option<(JoinHandle<()>, JoinHandle<()>)>,
+    stopper: Stopper,
     pub compressed_atomic: Arc<AtomicBool>,
     pub packet_sender: Sender<ServerPacket>,
 }
@@ -64,38 +63,48 @@ impl Client {
         stream: TcpStream,
         socket_addr: SocketAddr,
         config_arc: Arc<Config>,
-        dispatcher_status_rwlock: Arc<RwLock<AsyncDispatcher>>,
-        dispatcher_login_rwlock: Arc<RwLock<AsyncDispatcher>>,
-        dispatcher_configuration_rwlock: Arc<RwLock<AsyncDispatcher>>,
-        dispatcher_play_rwlock: Arc<RwLock<AsyncDispatcher>>,
+        disconnect_sender: Sender<SocketAddr>,
+        dispatcher: EventDispatcher,
     ) -> Arc<Self> {
-        let (mut read_stream, mut write_stream) = split(stream);
-        let running_atomic = Arc::new(AtomicBool::new(true));
-        let compressed_atomic = Arc::new(AtomicBool::new(false));
-        let (packet_sender, packet_receiver) = unbounded::<ServerPacket>();
+        let barrier = Arc::new(Barrier::new(3));
+        let client = Arc::new_cyclic(|client_weak: &Weak<Client>| {
+            let (mut read_stream, mut write_stream) = split(stream);
+            let stopper = Stopper::new();
+            let compressed_atomic = Arc::new(AtomicBool::new(false));
+            let (packet_sender, packet_receiver) = unbounded::<ServerPacket>();
 
-        Arc::new_cyclic(|client_weak| {
-            let handle = (
+            let handle_option = Some((
                 task::spawn({
                     let client_weak = client_weak.clone();
+                    let barrier = barrier.clone();
                     let config_arc = config_arc.clone();
-                    let running_atomic = running_atomic.clone();
+                    let stopper = stopper.clone();
                     let compressed_atomic = compressed_atomic.clone();
 
                     async move {
+                        barrier.wait();
+
+                        let client_arc = client_weak.upgrade().unwrap();
                         let mut client_state = ClientState::Handshake;
                         let mut buffer: Vec<u8> = Vec::new();
                         let mut tmp_buffer = vec![0; 1024];
 
                         'main: loop {
-                            let length = match timeout(
-                                config_arc.timeout,
-                                read_stream.read(&mut tmp_buffer),
-                            )
-                            .await
+                            let length = match stopper
+                                .stop_future(timeout(
+                                    config_arc.timeout,
+                                    read_stream.read(&mut tmp_buffer),
+                                ))
+                                .await
                             {
-                                Ok(length) => length,
-                                Err(error) => {
+                                Some(Ok(0)) | None => {
+                                    warn!("{socket_addr} : Connection closed");
+
+                                    client_arc.disconnect().await;
+                                    break 'main;
+                                }
+                                Some(Ok(length)) => length,
+                                Some(Err(error)) => {
                                     if let ErrorKind::TimedOut = error.kind() {
                                         warn!("{socket_addr} : Connection timed out");
                                     } else {
@@ -104,17 +113,10 @@ impl Client {
                                         );
                                     }
 
-                                    running_atomic.store(false, Ordering::Relaxed);
+                                    client_arc.disconnect().await;
                                     break 'main;
                                 }
                             };
-
-                            if length == 0 {
-                                warn!("{socket_addr} : Connection closed");
-
-                                running_atomic.store(false, Ordering::Relaxed);
-                                break 'main;
-                            }
 
                             buffer.extend(&tmp_buffer[..length]);
 
@@ -146,7 +148,7 @@ impl Client {
                                             } else {
                                                 warn!("{socket_addr} : Wrong protocol version, connection closed");
 
-                                                running_atomic.store(false, Ordering::Relaxed);
+                                                client_arc.disconnect().await;
                                                 break 'main;
                                             }
                                         }
@@ -162,13 +164,11 @@ impl Client {
 
                                         debug!("{socket_addr} : {:?}", packet);
 
-                                        if let Err(error) = dispatcher_status_rwlock
+                                        if let Err(error) = dispatcher
+                                            .status_rwlock
                                             .read()
                                             .await
-                                            .dispatch(&PacketEvent::new(
-                                                packet,
-                                                client_weak.upgrade().unwrap(),
-                                            ))
+                                            .dispatch(&PacketEvent::new(packet, client_arc.clone()))
                                             .await
                                         {
                                             error!("{socket_addr} : {error}");
@@ -185,13 +185,11 @@ impl Client {
 
                                         debug!("{socket_addr} : {:?}", packet);
 
-                                        if let Err(error) = dispatcher_login_rwlock
+                                        if let Err(error) = dispatcher
+                                            .login_rwlock
                                             .read()
                                             .await
-                                            .dispatch(&PacketEvent::new(
-                                                packet,
-                                                client_weak.upgrade().unwrap(),
-                                            ))
+                                            .dispatch(&PacketEvent::new(packet, client_arc.clone()))
                                             .await
                                         {
                                             error!("{socket_addr} : {error}");
@@ -208,13 +206,11 @@ impl Client {
 
                                         debug!("{socket_addr} : {:?}", packet);
 
-                                        if let Err(error) = dispatcher_configuration_rwlock
+                                        if let Err(error) = dispatcher
+                                            .configuration_rwlock
                                             .read()
                                             .await
-                                            .dispatch(&PacketEvent::new(
-                                                packet,
-                                                client_weak.upgrade().unwrap(),
-                                            ))
+                                            .dispatch(&PacketEvent::new(packet, client_arc.clone()))
                                             .await
                                         {
                                             error!("{socket_addr} : {error}");
@@ -231,13 +227,11 @@ impl Client {
 
                                         debug!("{socket_addr} : {:?}", packet);
 
-                                        if let Err(error) = dispatcher_play_rwlock
+                                        if let Err(error) = dispatcher
+                                            .play_rwlock
                                             .read()
                                             .await
-                                            .dispatch(&PacketEvent::new(
-                                                packet,
-                                                client_weak.upgrade().unwrap(),
-                                            ))
+                                            .dispatch(&PacketEvent::new(packet, client_arc.clone()))
                                             .await
                                         {
                                             error!("{socket_addr} : {error}");
@@ -249,11 +243,17 @@ impl Client {
                     }
                 }),
                 task::spawn({
+                    let barrier = barrier.clone();
                     let config_arc = config_arc.clone();
+                    let stopper = stopper.clone();
                     let compressed_atomic = compressed_atomic.clone();
 
                     async move {
-                        while let Ok(packet) = packet_receiver.recv().await {
+                        barrier.wait();
+
+                        while let Some(Ok(packet)) =
+                            stopper.stop_future(packet_receiver.recv()).await
+                        {
                             match Packet::try_from(packet) {
                                 Ok(packet) => match packet.into_bytes(
                                     compressed_atomic.load(Ordering::Relaxed),
@@ -275,30 +275,42 @@ impl Client {
                         }
                     }
                 }),
-            );
+            ));
 
             Self {
-                client_weak: client_weak.clone(),
                 socket_addr,
                 config_arc,
-                handle,
-                running_atomic,
+                disconnect_sender,
+                handle_option,
+                stopper,
                 compressed_atomic,
                 packet_sender,
             }
-        })
+        });
+
+        barrier.wait();
+        client
+    }
+
+    pub async fn disconnect(&self) {
+        self.stopper.stop();
+        self.disconnect_sender.send(self.socket_addr).await.ok();
     }
 }
 
-pub trait ClientDisconnect {
-    fn disconnect(self) -> impl Future<Output = ()> + Send;
+pub(super) trait ClientStop {
+    fn stop(self) -> impl Future<Output = ()> + Send;
 }
 
-impl ClientDisconnect for Arc<Client> {
-    async fn disconnect(self) {
-        if let Some(client) = Arc::into_inner(self) {
-            client.handle.0.cancel().await;
-            client.handle.1.cancel().await;
+impl ClientStop for Arc<Client> {
+    async fn stop(self) {
+        if let Some(mut client) = Arc::into_inner(self) {
+            client.stopper.stop();
+
+            if let Some(handle) = client.handle_option.take() {
+                handle.0.await;
+                handle.1.await;
+            }
         }
     }
 }

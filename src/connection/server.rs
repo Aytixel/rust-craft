@@ -1,123 +1,128 @@
-use std::sync::atomic::Ordering;
+use std::net::SocketAddr;
 
 use anyhow::Result;
 use async_std::{
+    channel::{unbounded, Receiver, Sender},
     net::TcpListener,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex},
     task::{self, JoinHandle},
 };
-use epicenter::{AsyncDispatcher, Event};
 use log::{error, warn};
+use stopper::Stopper;
 
-use super::{Client, ClientDisconnect, Config};
-
-pub struct PacketEvent<T> {
-    pub packet_arc: Arc<T>,
-    pub client_arc: Arc<Client>,
-}
-
-impl<T> PacketEvent<T> {
-    pub fn new(packet: T, client_arc: Arc<Client>) -> Self {
-        Self {
-            packet_arc: Arc::new(packet),
-            client_arc,
-        }
-    }
-}
-
-impl<T> Clone for PacketEvent<T> {
-    fn clone(&self) -> Self {
-        Self {
-            packet_arc: self.packet_arc.clone(),
-            client_arc: self.client_arc.clone(),
-        }
-    }
-}
-
-impl<T> Event for PacketEvent<T> {}
+use super::{Client, ClientStop, Config, EventDispatcher};
 
 pub struct Server {
     config_arc: Arc<Config>,
     socket_addr: String,
     client_vec_mutex: Arc<Mutex<Vec<Arc<Client>>>>,
-    handle_option: Option<JoinHandle<()>>,
-    pub dispatcher_status_rwlock: Arc<RwLock<AsyncDispatcher>>,
-    pub dispatcher_login_rwlock: Arc<RwLock<AsyncDispatcher>>,
-    pub dispatcher_configuration_rwlock: Arc<RwLock<AsyncDispatcher>>,
-    pub dispatcher_play_rwlock: Arc<RwLock<AsyncDispatcher>>,
+    disconnect_channel: (Sender<SocketAddr>, Receiver<SocketAddr>),
+    disconnect_handle_option: Option<(Stopper, JoinHandle<()>)>,
+    accept_handle_option: Option<(Stopper, JoinHandle<()>)>,
+    pub dispatcher: EventDispatcher,
 }
 
 impl Server {
     pub async fn new(socket_addr: String, config: Config) -> Result<Self> {
+        let client_vec_mutex: Arc<Mutex<Vec<Arc<Client>>>> = Arc::new(Mutex::new(Vec::new()));
+        let client_disconnect_channel = unbounded();
+        let stopper = Stopper::new();
+
         Ok(Self {
+            disconnect_handle_option: Some((
+                stopper.clone(),
+                task::spawn({
+                    let client_vec_mutex = client_vec_mutex.clone();
+                    let client_disconnect_receiver = client_disconnect_channel.1.clone();
+
+                    async move {
+                        while let Some(Ok(socket_addr)) =
+                            stopper.stop_future(client_disconnect_receiver.recv()).await
+                        {
+                            let mut client_vec = client_vec_mutex.lock().await;
+
+                            if let Some(index) = client_vec
+                                .iter()
+                                .position(|client| client.socket_addr == socket_addr)
+                            {
+                                client_vec.remove(index).stop().await;
+                            }
+                        }
+                    }
+                }),
+            )),
             config_arc: Arc::new(config),
             socket_addr,
-            client_vec_mutex: Arc::new(Mutex::new(Vec::new())),
-            handle_option: None,
-            dispatcher_status_rwlock: Arc::new(RwLock::new(AsyncDispatcher::new())),
-            dispatcher_login_rwlock: Arc::new(RwLock::new(AsyncDispatcher::new())),
-            dispatcher_configuration_rwlock: Arc::new(RwLock::new(AsyncDispatcher::new())),
-            dispatcher_play_rwlock: Arc::new(RwLock::new(AsyncDispatcher::new())),
+            client_vec_mutex,
+            disconnect_channel: client_disconnect_channel,
+            accept_handle_option: None,
+            dispatcher: EventDispatcher::default(),
         })
     }
 
     pub async fn start(&mut self) -> Result<()> {
-        let config_arc = self.config_arc.clone();
-        let socket_addr = self.socket_addr.clone();
-        let client_vec_mutex = self.client_vec_mutex.clone();
-        let dispatcher_status_rwlock = self.dispatcher_status_rwlock.clone();
-        let dispatcher_login_rwlock = self.dispatcher_login_rwlock.clone();
-        let dispatcher_configuration_rwlock = self.dispatcher_configuration_rwlock.clone();
-        let dispatcher_play_rwlock = self.dispatcher_play_rwlock.clone();
-        let listener = TcpListener::bind(socket_addr).await?;
+        let stopper = Stopper::new();
 
-        self.handle_option = Some(task::spawn(async move {
-            loop {
-                match listener.accept().await {
-                    Ok((stream, socket_addr)) => {
-                        client_vec_mutex.lock().await.push(Client::new(
-                            stream,
-                            socket_addr,
-                            config_arc.clone(),
-                            dispatcher_status_rwlock.clone(),
-                            dispatcher_login_rwlock.clone(),
-                            dispatcher_configuration_rwlock.clone(),
-                            dispatcher_play_rwlock.clone(),
-                        ));
+        self.accept_handle_option = Some((
+            stopper.clone(),
+            task::spawn({
+                let config_arc = self.config_arc.clone();
+                let socket_addr = self.socket_addr.clone();
+                let client_vec_mutex = self.client_vec_mutex.clone();
+                let client_disconnect_sender = self.disconnect_channel.0.clone();
+                let dispatcher = self.dispatcher.clone();
+                let listener = TcpListener::bind(socket_addr).await?;
 
-                        warn!("{socket_addr} : New connection");
-                    }
-                    Err(error) => error!("Error accepting a new connection : {error}"),
-                }
+                async move {
+                    while let Some(connection) = stopper.stop_future(listener.accept()).await {
+                        match connection {
+                            Ok((stream, socket_addr)) => {
+                                client_vec_mutex.lock().await.push(Client::new(
+                                    stream,
+                                    socket_addr,
+                                    config_arc.clone(),
+                                    client_disconnect_sender.clone(),
+                                    dispatcher.clone(),
+                                ));
 
-                {
-                    let mut client_vec = client_vec_mutex.lock().await;
-                    let mut index = 0;
-
-                    while let Some(client) = client_vec.get(index) {
-                        if !client.running_atomic.load(Ordering::Relaxed) {
-                            client_vec.remove(index).disconnect().await;
-                            continue;
+                                warn!("{socket_addr} : New connection");
+                            }
+                            Err(error) => error!("Error accepting a new connection : {error}"),
                         }
-
-                        index += 1;
                     }
                 }
-            }
-        }));
+            }),
+        ));
 
         Ok(())
     }
 
     pub async fn stop(&mut self) {
-        if let Some(handle) = self.handle_option.take() {
-            handle.cancel().await;
+        if let Some(handle) = self.accept_handle_option.take() {
+            handle.0.stop();
+            handle.1.await;
         }
     }
 
     pub async fn disconnect(&mut self) {
         for client in self.client_vec_mutex.lock().await.drain(..) {
-            client.disconnect().await;
+            client.stop().await;
         }
+    }
+}
+
+impl Drop for Server {
+    fn drop(&mut self) {
+        if let Some(disconnect_handle) = self.disconnect_handle_option.take() {
+            task::block_on(async move {
+                disconnect_handle.0.stop();
+                disconnect_handle.1.await;
+            });
+        }
+
+        task::block_on(async move {
+            self.stop().await;
+            self.disconnect().await;
+        });
     }
 }

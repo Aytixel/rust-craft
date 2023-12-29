@@ -24,14 +24,11 @@ async fn main() -> Result<()> {
 
     let mut server = Server::new("0.0.0.0:25565".to_string(), config).await?;
 
-    StatusLogic::init(server.dispatcher_status_rwlock.clone()).await;
+    StatusLogic::init(server.dispatcher.status_rwlock.clone()).await;
 
     server.start().await?;
 
     CtrlC::new()?.await;
-
-    server.stop().await;
-    server.disconnect().await;
 
     info!("Server shutdown");
 
