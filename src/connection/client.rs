@@ -78,8 +78,8 @@ impl Client {
             let handle_option = Some((
                 task::spawn(Self::read_thread(
                     barrier_arc.clone(),
-                    stopper.clone(),
                     client_weak.clone(),
+                    stopper.clone(),
                     read_stream,
                     socket_addr,
                     compressed_atomic.clone(),
@@ -87,7 +87,6 @@ impl Client {
                     dispatcher,
                 )),
                 task::spawn(Self::write_thread(
-                    barrier_arc.clone(),
                     stopper.clone(),
                     packet_receiver,
                     write_stream,
@@ -114,8 +113,8 @@ impl Client {
 
     async fn read_thread(
         barrier_arc: Arc<Barrier>,
-        stopper: Stopper,
         client_weak: Weak<Client>,
+        stopper: Stopper,
         mut read_stream: ReadHalf<TcpStream>,
         socket_addr: SocketAddr,
         compressed_atomic: Arc<AtomicBool>,
@@ -281,7 +280,6 @@ impl Client {
     }
 
     async fn write_thread(
-        barrier_arc: Arc<Barrier>,
         stopper: Stopper,
         packet_receiver: Receiver<ServerPacket>,
         mut write_stream: WriteHalf<TcpStream>,
@@ -289,8 +287,6 @@ impl Client {
         compressed_atomic: Arc<AtomicBool>,
         config_arc: Arc<Config>,
     ) {
-        barrier_arc.wait();
-
         while let Some(Ok(packet)) = stopper.stop_future(packet_receiver.recv()).await {
             Self::write_packet(
                 &mut write_stream,
