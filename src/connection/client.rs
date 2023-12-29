@@ -8,12 +8,15 @@ use std::{
 };
 
 use async_std::{
-    channel::{unbounded, Sender},
+    channel::{unbounded, Receiver, Sender},
     io::{timeout, ReadExt, WriteExt},
     net::TcpStream,
     task::{self, JoinHandle},
 };
-use futures_lite::{io::split, Future};
+use futures_lite::{
+    io::{split, ReadHalf, WriteHalf},
+    Future,
+};
 use log::{debug, error, warn};
 use packet::Packet;
 use stopper::Stopper;
@@ -66,215 +69,32 @@ impl Client {
         disconnect_sender: Sender<SocketAddr>,
         dispatcher: EventDispatcher,
     ) -> Arc<Self> {
-        let barrier = Arc::new(Barrier::new(3));
-        let client = Arc::new_cyclic(|client_weak: &Weak<Client>| {
-            let (mut read_stream, mut write_stream) = split(stream);
+        let barrier_arc = Arc::new(Barrier::new(3));
+        let client_arc = Arc::new_cyclic(|client_weak: &Weak<Client>| {
+            let (read_stream, write_stream) = split(stream);
             let stopper = Stopper::new();
             let compressed_atomic = Arc::new(AtomicBool::new(false));
             let (packet_sender, packet_receiver) = unbounded::<ServerPacket>();
-
             let handle_option = Some((
-                task::spawn({
-                    let client_weak = client_weak.clone();
-                    let barrier = barrier.clone();
-                    let config_arc = config_arc.clone();
-                    let stopper = stopper.clone();
-                    let compressed_atomic = compressed_atomic.clone();
-
-                    async move {
-                        barrier.wait();
-
-                        let client_arc = client_weak.upgrade().unwrap();
-                        let mut client_state = ClientState::Handshake;
-                        let mut buffer: Vec<u8> = Vec::new();
-                        let mut tmp_buffer = vec![0; 1024];
-
-                        'main: loop {
-                            let length = match stopper
-                                .stop_future(timeout(
-                                    config_arc.timeout,
-                                    read_stream.read(&mut tmp_buffer),
-                                ))
-                                .await
-                            {
-                                Some(Ok(0)) | None => {
-                                    warn!("{socket_addr} : Connection closed");
-
-                                    client_arc.disconnect().await;
-                                    break 'main;
-                                }
-                                Some(Ok(length)) => length,
-                                Some(Err(error)) => {
-                                    if let ErrorKind::TimedOut = error.kind() {
-                                        warn!("{socket_addr} : Connection timed out");
-                                    } else {
-                                        warn!(
-                                            "{socket_addr} : An error occurred, connection closed"
-                                        );
-                                    }
-
-                                    client_arc.disconnect().await;
-                                    break 'main;
-                                }
-                            };
-
-                            buffer.extend(&tmp_buffer[..length]);
-
-                            while let Ok(packet) = Packet::from_bytes(
-                                &mut buffer,
-                                compressed_atomic.load(Ordering::Relaxed),
-                            ) {
-                                match client_state {
-                                    ClientState::Handshake => {
-                                        let packet = match ClientHandshake::try_from(packet) {
-                                            Ok(packet) => packet,
-                                            Err(error) => {
-                                                error!("{socket_addr} : {error}");
-                                                continue;
-                                            }
-                                        };
-
-                                        debug!("{socket_addr} : {:?}", packet);
-
-                                        #[allow(irrefutable_let_patterns)]
-                                        if let ClientHandshake::Handshake(Handshake {
-                                            protocol_version,
-                                            next_state,
-                                            ..
-                                        }) = packet
-                                        {
-                                            if protocol_version == config_arc.version.protocol {
-                                                client_state = ClientState::from(next_state as u8);
-                                            } else {
-                                                warn!("{socket_addr} : Wrong protocol version, connection closed");
-
-                                                client_arc.disconnect().await;
-                                                break 'main;
-                                            }
-                                        }
-                                    }
-                                    ClientState::Status => {
-                                        let packet = match ClientStatus::try_from(packet) {
-                                            Ok(packet) => packet,
-                                            Err(error) => {
-                                                error!("{socket_addr} : {error}");
-                                                continue;
-                                            }
-                                        };
-
-                                        debug!("{socket_addr} : {:?}", packet);
-
-                                        if let Err(error) = dispatcher
-                                            .status_rwlock
-                                            .read()
-                                            .await
-                                            .dispatch(&PacketEvent::new(packet, client_arc.clone()))
-                                            .await
-                                        {
-                                            error!("{socket_addr} : {error}");
-                                        }
-                                    }
-                                    ClientState::Login => {
-                                        let packet = match ClientLogin::try_from(packet) {
-                                            Ok(packet) => packet,
-                                            Err(error) => {
-                                                error!("{socket_addr} : {error}");
-                                                continue;
-                                            }
-                                        };
-
-                                        debug!("{socket_addr} : {:?}", packet);
-
-                                        if let Err(error) = dispatcher
-                                            .login_rwlock
-                                            .read()
-                                            .await
-                                            .dispatch(&PacketEvent::new(packet, client_arc.clone()))
-                                            .await
-                                        {
-                                            error!("{socket_addr} : {error}");
-                                        }
-                                    }
-                                    ClientState::Configuration => {
-                                        let packet = match ClientConfiguration::try_from(packet) {
-                                            Ok(packet) => packet,
-                                            Err(error) => {
-                                                error!("{socket_addr} : {error}");
-                                                continue;
-                                            }
-                                        };
-
-                                        debug!("{socket_addr} : {:?}", packet);
-
-                                        if let Err(error) = dispatcher
-                                            .configuration_rwlock
-                                            .read()
-                                            .await
-                                            .dispatch(&PacketEvent::new(packet, client_arc.clone()))
-                                            .await
-                                        {
-                                            error!("{socket_addr} : {error}");
-                                        }
-                                    }
-                                    ClientState::Play => {
-                                        let packet = match ClientPlay::try_from(packet) {
-                                            Ok(packet) => packet,
-                                            Err(error) => {
-                                                error!("{socket_addr} : {error}");
-                                                continue;
-                                            }
-                                        };
-
-                                        debug!("{socket_addr} : {:?}", packet);
-
-                                        if let Err(error) = dispatcher
-                                            .play_rwlock
-                                            .read()
-                                            .await
-                                            .dispatch(&PacketEvent::new(packet, client_arc.clone()))
-                                            .await
-                                        {
-                                            error!("{socket_addr} : {error}");
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }),
-                task::spawn({
-                    let barrier = barrier.clone();
-                    let config_arc = config_arc.clone();
-                    let stopper = stopper.clone();
-                    let compressed_atomic = compressed_atomic.clone();
-
-                    async move {
-                        barrier.wait();
-
-                        while let Some(Ok(packet)) =
-                            stopper.stop_future(packet_receiver.recv()).await
-                        {
-                            match Packet::try_from(packet) {
-                                Ok(packet) => match packet.into_bytes(
-                                    compressed_atomic.load(Ordering::Relaxed),
-                                    config_arc.compression_threshold,
-                                ) {
-                                    Ok(buffer) => {
-                                        if let Err(error) = write_stream.write_all(&buffer).await {
-                                            error!("{socket_addr} : Sending a packet : {error}");
-                                        }
-                                    }
-                                    Err(error) => {
-                                        error!(
-                                            "{socket_addr} : Error serializing a packet : {error}"
-                                        );
-                                    }
-                                },
-                                Err(error) => error!("{socket_addr} : {error}"),
-                            };
-                        }
-                    }
-                }),
+                task::spawn(Self::read_thread(
+                    barrier_arc.clone(),
+                    stopper.clone(),
+                    client_weak.clone(),
+                    read_stream,
+                    socket_addr,
+                    compressed_atomic.clone(),
+                    config_arc.clone(),
+                    dispatcher,
+                )),
+                task::spawn(Self::write_thread(
+                    barrier_arc.clone(),
+                    stopper.clone(),
+                    packet_receiver,
+                    write_stream,
+                    socket_addr,
+                    compressed_atomic.clone(),
+                    config_arc.clone(),
+                )),
             ));
 
             Self {
@@ -288,8 +108,236 @@ impl Client {
             }
         });
 
-        barrier.wait();
-        client
+        barrier_arc.wait();
+        client_arc
+    }
+
+    async fn read_thread(
+        barrier_arc: Arc<Barrier>,
+        stopper: Stopper,
+        client_weak: Weak<Client>,
+        mut read_stream: ReadHalf<TcpStream>,
+        socket_addr: SocketAddr,
+        compressed_atomic: Arc<AtomicBool>,
+        config_arc: Arc<Config>,
+        dispatcher: EventDispatcher,
+    ) {
+        barrier_arc.wait();
+
+        let client_arc = client_weak.upgrade().unwrap();
+        let mut client_state = ClientState::Handshake;
+        let mut buffer: Vec<u8> = Vec::new();
+        let mut tmp_buffer = vec![0; 1024];
+
+        'main: loop {
+            let length = match stopper
+                .stop_future(timeout(
+                    config_arc.timeout,
+                    read_stream.read(&mut tmp_buffer),
+                ))
+                .await
+            {
+                Some(Ok(0)) | None => {
+                    warn!("{socket_addr} : Connection closed");
+
+                    client_arc.disconnect().await;
+                    break 'main;
+                }
+                Some(Ok(length)) => length,
+                Some(Err(error)) => {
+                    if let ErrorKind::TimedOut = error.kind() {
+                        warn!("{socket_addr} : Connection timed out");
+                    } else {
+                        warn!("{socket_addr} : An error occurred, connection closed");
+                    }
+
+                    client_arc.disconnect().await;
+                    break 'main;
+                }
+            };
+
+            buffer.extend(&tmp_buffer[..length]);
+
+            // parse packets from buffer
+            while let Ok(packet) =
+                Packet::from_bytes(&mut buffer, compressed_atomic.load(Ordering::Relaxed))
+            {
+                match client_state {
+                    ClientState::Handshake => {
+                        let packet = match ClientHandshake::try_from(packet) {
+                            Ok(packet) => packet,
+                            Err(error) => {
+                                error!("{socket_addr} : {error}");
+                                continue;
+                            }
+                        };
+
+                        debug!("{socket_addr} : {:?}", packet);
+
+                        #[allow(irrefutable_let_patterns)]
+                        if let ClientHandshake::Handshake(Handshake {
+                            protocol_version,
+                            next_state,
+                            ..
+                        }) = packet
+                        {
+                            if protocol_version == config_arc.version.protocol {
+                                client_state = ClientState::from(next_state as u8);
+                            } else {
+                                warn!("{socket_addr} : Wrong protocol version, connection closed");
+
+                                client_arc.disconnect().await;
+                                break 'main;
+                            }
+                        }
+                    }
+                    ClientState::Status => {
+                        let packet = match ClientStatus::try_from(packet) {
+                            Ok(packet) => packet,
+                            Err(error) => {
+                                error!("{socket_addr} : {error}");
+                                continue;
+                            }
+                        };
+
+                        debug!("{socket_addr} : {:?}", packet);
+
+                        if let Err(error) = dispatcher
+                            .status_rwlock
+                            .read()
+                            .await
+                            .dispatch(&PacketEvent::new(packet, client_arc.clone()))
+                            .await
+                        {
+                            error!("{socket_addr} : {error}");
+                        }
+                    }
+                    ClientState::Login => {
+                        let packet = match ClientLogin::try_from(packet) {
+                            Ok(packet) => packet,
+                            Err(error) => {
+                                error!("{socket_addr} : {error}");
+                                continue;
+                            }
+                        };
+
+                        debug!("{socket_addr} : {:?}", packet);
+
+                        if let Err(error) = dispatcher
+                            .login_rwlock
+                            .read()
+                            .await
+                            .dispatch(&PacketEvent::new(packet, client_arc.clone()))
+                            .await
+                        {
+                            error!("{socket_addr} : {error}");
+                        }
+                    }
+                    ClientState::Configuration => {
+                        let packet = match ClientConfiguration::try_from(packet) {
+                            Ok(packet) => packet,
+                            Err(error) => {
+                                error!("{socket_addr} : {error}");
+                                continue;
+                            }
+                        };
+
+                        debug!("{socket_addr} : {:?}", packet);
+
+                        if let Err(error) = dispatcher
+                            .configuration_rwlock
+                            .read()
+                            .await
+                            .dispatch(&PacketEvent::new(packet, client_arc.clone()))
+                            .await
+                        {
+                            error!("{socket_addr} : {error}");
+                        }
+                    }
+                    ClientState::Play => {
+                        let packet = match ClientPlay::try_from(packet) {
+                            Ok(packet) => packet,
+                            Err(error) => {
+                                error!("{socket_addr} : {error}");
+                                continue;
+                            }
+                        };
+
+                        debug!("{socket_addr} : {:?}", packet);
+
+                        if let Err(error) = dispatcher
+                            .play_rwlock
+                            .read()
+                            .await
+                            .dispatch(&PacketEvent::new(packet, client_arc.clone()))
+                            .await
+                        {
+                            error!("{socket_addr} : {error}");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    async fn write_thread(
+        barrier_arc: Arc<Barrier>,
+        stopper: Stopper,
+        packet_receiver: Receiver<ServerPacket>,
+        mut write_stream: WriteHalf<TcpStream>,
+        socket_addr: SocketAddr,
+        compressed_atomic: Arc<AtomicBool>,
+        config_arc: Arc<Config>,
+    ) {
+        barrier_arc.wait();
+
+        while let Some(Ok(packet)) = stopper.stop_future(packet_receiver.recv()).await {
+            Self::write_packet(
+                &mut write_stream,
+                packet,
+                &socket_addr,
+                &compressed_atomic,
+                &config_arc,
+            )
+            .await;
+        }
+
+        // ensure all pending packets are sent
+        while let Ok(packet) = packet_receiver.try_recv() {
+            Self::write_packet(
+                &mut write_stream,
+                packet,
+                &socket_addr,
+                &compressed_atomic,
+                &config_arc,
+            )
+            .await;
+        }
+    }
+
+    async fn write_packet(
+        write_stream: &mut WriteHalf<TcpStream>,
+        packet: ServerPacket,
+        socket_addr: &SocketAddr,
+        compressed_atomic: &Arc<AtomicBool>,
+        config_arc: &Arc<Config>,
+    ) {
+        match Packet::try_from(packet) {
+            Ok(packet) => match packet.into_bytes(
+                compressed_atomic.load(Ordering::Relaxed),
+                config_arc.compression_threshold,
+            ) {
+                Ok(buffer) => {
+                    if let Err(error) = write_stream.write_all(&buffer).await {
+                        error!("{socket_addr} : Sending a packet : {error}");
+                    }
+                }
+                Err(error) => {
+                    error!("{socket_addr} : Error serializing a packet : {error}");
+                }
+            },
+            Err(error) => error!("{socket_addr} : {error}"),
+        };
     }
 
     pub async fn disconnect(&self) {
