@@ -33,8 +33,7 @@ impl StatusLogic {
         match *packet_arc.as_ref() {
             ClientStatus::StatusRequest(StatusRequest {}) => {
                 client_arc
-                    .packet_sender
-                    .send(ServerPacket::from(ServerStatus::StatusResponse(
+                    .send_packet(ServerPacket::from(ServerStatus::StatusResponse(
                         StatusResponse {
                             json_response: json!({
                                 "version": {
@@ -56,17 +55,14 @@ impl StatusLogic {
                             .to_string(),
                         },
                     )))
-                    .await
-                    .ok();
+                    .await;
             }
             ClientStatus::PingRequest(PingRequest { payload }) => {
                 client_arc
-                    .packet_sender
-                    .send(ServerPacket::from(ServerStatus::PingResponse(
+                    .send_packet(ServerPacket::from(ServerStatus::PingResponse(
                         PingResponse { payload },
                     )))
-                    .await
-                    .ok();
+                    .await;
             }
         }
     }

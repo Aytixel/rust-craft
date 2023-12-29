@@ -8,9 +8,10 @@ use std::{
 };
 
 use async_std::{
-    channel::{unbounded, Receiver, Sender},
+    channel::Sender,
     io::{timeout, ReadExt, WriteExt},
     net::TcpStream,
+    sync::Mutex,
     task::{self, JoinHandle},
 };
 use futures_lite::{
@@ -55,10 +56,10 @@ pub struct Client {
     pub socket_addr: SocketAddr,
     pub config_arc: Arc<Config>,
     disconnect_sender: Sender<SocketAddr>,
-    handle_option: Option<(JoinHandle<()>, JoinHandle<()>)>,
+    handle_option: Option<JoinHandle<()>>,
     stopper: Stopper,
-    pub compressed_atomic: Arc<AtomicBool>,
-    pub packet_sender: Sender<ServerPacket>,
+    compressed_atomic: Arc<AtomicBool>,
+    write_stream_mutex: Mutex<WriteHalf<TcpStream>>,
 }
 
 impl Client {
@@ -69,32 +70,21 @@ impl Client {
         disconnect_sender: Sender<SocketAddr>,
         dispatcher: EventDispatcher,
     ) -> Arc<Self> {
-        let barrier_arc = Arc::new(Barrier::new(3));
+        let barrier_arc = Arc::new(Barrier::new(2));
         let client_arc = Arc::new_cyclic(|client_weak: &Weak<Client>| {
             let (read_stream, write_stream) = split(stream);
             let stopper = Stopper::new();
             let compressed_atomic = Arc::new(AtomicBool::new(false));
-            let (packet_sender, packet_receiver) = unbounded::<ServerPacket>();
-            let handle_option = Some((
-                task::spawn(Self::read_thread(
-                    barrier_arc.clone(),
-                    client_weak.clone(),
-                    stopper.clone(),
-                    read_stream,
-                    socket_addr,
-                    compressed_atomic.clone(),
-                    config_arc.clone(),
-                    dispatcher,
-                )),
-                task::spawn(Self::write_thread(
-                    stopper.clone(),
-                    packet_receiver,
-                    write_stream,
-                    socket_addr,
-                    compressed_atomic.clone(),
-                    config_arc.clone(),
-                )),
-            ));
+            let handle_option = Some(task::spawn(Self::read_thread(
+                barrier_arc.clone(),
+                client_weak.clone(),
+                stopper.clone(),
+                read_stream,
+                socket_addr,
+                compressed_atomic.clone(),
+                config_arc.clone(),
+                dispatcher,
+            )));
 
             Self {
                 socket_addr,
@@ -103,7 +93,7 @@ impl Client {
                 handle_option,
                 stopper,
                 compressed_atomic,
-                packet_sender,
+                write_stream_mutex: Mutex::new(write_stream),
             }
         });
 
@@ -279,61 +269,36 @@ impl Client {
         }
     }
 
-    async fn write_thread(
-        stopper: Stopper,
-        packet_receiver: Receiver<ServerPacket>,
-        mut write_stream: WriteHalf<TcpStream>,
-        socket_addr: SocketAddr,
-        compressed_atomic: Arc<AtomicBool>,
-        config_arc: Arc<Config>,
-    ) {
-        while let Some(Ok(packet)) = stopper.stop_future(packet_receiver.recv()).await {
-            Self::write_packet(
-                &mut write_stream,
-                packet,
-                &socket_addr,
-                &compressed_atomic,
-                &config_arc,
-            )
-            .await;
-        }
-
-        // ensure all pending packets are sent
-        while let Ok(packet) = packet_receiver.try_recv() {
-            Self::write_packet(
-                &mut write_stream,
-                packet,
-                &socket_addr,
-                &compressed_atomic,
-                &config_arc,
-            )
-            .await;
-        }
-    }
-
-    async fn write_packet(
-        write_stream: &mut WriteHalf<TcpStream>,
-        packet: ServerPacket,
-        socket_addr: &SocketAddr,
-        compressed_atomic: &Arc<AtomicBool>,
-        config_arc: &Arc<Config>,
-    ) {
+    pub async fn send_packet(&self, packet: ServerPacket) {
         match Packet::try_from(packet) {
             Ok(packet) => match packet.into_bytes(
-                compressed_atomic.load(Ordering::Relaxed),
-                config_arc.compression_threshold,
+                self.compressed_atomic.load(Ordering::Relaxed),
+                self.config_arc.compression_threshold,
             ) {
                 Ok(buffer) => {
-                    if let Err(error) = write_stream.write_all(&buffer).await {
-                        error!("{socket_addr} : Sending a packet : {error}");
+                    if let Err(error) = self
+                        .write_stream_mutex
+                        .lock()
+                        .await
+                        .write_all(&buffer)
+                        .await
+                    {
+                        error!("{} : Sending a packet : {error}", self.socket_addr);
                     }
                 }
                 Err(error) => {
-                    error!("{socket_addr} : Error serializing a packet : {error}");
+                    error!(
+                        "{} : Error serializing a packet : {error}",
+                        self.socket_addr
+                    );
                 }
             },
-            Err(error) => error!("{socket_addr} : {error}"),
+            Err(error) => error!("{} : {error}", self.socket_addr),
         };
+    }
+
+    pub fn enable_compression(&self) {
+        self.compressed_atomic.store(true, Ordering::Relaxed);
     }
 
     pub async fn disconnect(&self) {
@@ -352,8 +317,7 @@ impl ClientStop for Arc<Client> {
             client.stopper.stop();
 
             if let Some(handle) = client.handle_option.take() {
-                handle.0.await;
-                handle.1.await;
+                handle.await;
             }
         }
     }
