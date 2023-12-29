@@ -4,12 +4,12 @@ packet_enum! { ServerStatus
     #[derive(Debug, SerializePacket)]
     #[id(0x00)]
     pub struct StatusResponse {
-        json_response: String
+        pub json_response: String
     }
 
     #[derive(Debug, SerializePacket)]
     #[id(0x01)]
     pub struct PingResponse {
-        payload: i64
+        pub payload: i64
     }
 }

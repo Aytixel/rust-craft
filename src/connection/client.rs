@@ -52,6 +52,7 @@ impl From<u8> for ClientState {
 pub struct Client {
     pub client_weak: Weak<Client>,
     pub socket_addr: SocketAddr,
+    pub config_arc: Arc<Config>,
     handle: (JoinHandle<()>, JoinHandle<()>),
     pub running_atomic: Arc<AtomicBool>,
     pub compressed_atomic: Arc<AtomicBool>,
@@ -248,6 +249,7 @@ impl Client {
                     }
                 }),
                 task::spawn({
+                    let config_arc = config_arc.clone();
                     let compressed_atomic = compressed_atomic.clone();
 
                     async move {
@@ -278,6 +280,7 @@ impl Client {
             Self {
                 client_weak: client_weak.clone(),
                 socket_addr,
+                config_arc,
                 handle,
                 running_atomic,
                 compressed_atomic,

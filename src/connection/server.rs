@@ -7,7 +7,7 @@ use async_std::{
     task::{self, JoinHandle},
 };
 use epicenter::{AsyncDispatcher, Event};
-use log::{debug, error, warn};
+use log::{error, warn};
 
 use super::{Client, ClientDisconnect, Config};
 
@@ -102,8 +102,6 @@ impl Server {
 
                         index += 1;
                     }
-
-                    debug!("Client connection count : {}", client_vec.len());
                 }
             }
         }));
