@@ -58,6 +58,7 @@ pub struct Client<T: Send + Sync + 'static> {
     pub config_arc: Arc<Config>,
     pub encryptor_arc: Arc<RsaEncryptor>,
     data_option_mutex: Mutex<Option<T>>,
+    wrong_protocol_version_atomic: Arc<AtomicBool>,
     disconnect_sender: Sender<SocketAddr>,
     handle_option: Option<JoinHandle<()>>,
     stopper: Stopper,
@@ -79,12 +80,14 @@ impl<T: Send + Sync + 'static> Client<T> {
         let barrier_arc = Arc::new(Barrier::new(2));
         let client_arc = Arc::new_cyclic(|client_weak: &Weak<Client<T>>| {
             let (read_stream, write_stream) = split(stream);
+            let wrong_protocol_version_atomic = Arc::new(AtomicBool::new(false));
             let stopper = Stopper::new();
             let aes_decryptor_option_mutex = Arc::new(Mutex::new(None));
             let compressed_atomic = Arc::new(AtomicBool::new(false));
             let handle_option = Some(task::spawn(Self::read_thread(
                 barrier_arc.clone(),
                 client_weak.clone(),
+                wrong_protocol_version_atomic.clone(),
                 stopper.clone(),
                 read_stream,
                 socket_addr,
@@ -99,6 +102,7 @@ impl<T: Send + Sync + 'static> Client<T> {
                 config_arc,
                 encryptor_arc,
                 data_option_mutex: Mutex::new(None),
+                wrong_protocol_version_atomic,
                 disconnect_sender,
                 handle_option,
                 stopper,
@@ -116,6 +120,7 @@ impl<T: Send + Sync + 'static> Client<T> {
     async fn read_thread(
         barrier_arc: Arc<Barrier>,
         client_weak: Weak<Client<T>>,
+        wrong_protocol_version_atomic: Arc<AtomicBool>,
         stopper: Stopper,
         mut read_stream: ReadHalf<TcpStream>,
         socket_addr: SocketAddr,
@@ -187,14 +192,12 @@ impl<T: Send + Sync + 'static> Client<T> {
                             ..
                         }) = packet
                         {
-                            if protocol_version == config_arc.version.protocol {
-                                client_state = ClientState::from(next_state as u8);
-                            } else {
-                                warn!("{socket_addr} : Wrong protocol version, connection closed");
+                            client_state = ClientState::from(next_state as u8);
 
-                                client_arc.disconnect().await;
-                                break 'main;
-                            }
+                            wrong_protocol_version_atomic.store(
+                                protocol_version != config_arc.version.protocol,
+                                Ordering::Relaxed,
+                            );
                         }
                     }
                     ClientState::Status => {
@@ -228,6 +231,10 @@ impl<T: Send + Sync + 'static> Client<T> {
                         };
 
                         debug!("{socket_addr} : {:?}", packet);
+
+                        if let ClientLogin::LoginAcknowledged(_) = packet {
+                            client_state = ClientState::Configuration;
+                        }
 
                         if let Err(error) = dispatcher
                             .login_rwlock
@@ -318,6 +325,10 @@ impl<T: Send + Sync + 'static> Client<T> {
             },
             Err(error) => error!("{} : {error}", self.socket_addr),
         };
+    }
+
+    pub fn wrong_protocol_version(&self) -> bool {
+        self.wrong_protocol_version_atomic.load(Ordering::Relaxed)
     }
 
     pub async fn set_data(&self, data: T) {

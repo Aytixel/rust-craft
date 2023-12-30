@@ -1,12 +1,13 @@
 use async_std::sync::{Arc, RwLock};
 use epicenter::AsyncDispatcher;
-use log::error;
+use log::{error, warn};
+use serde_json::json;
 
 use crate::{
     connection::PacketEvent,
     packet::{
-        client::login::{EncryptionResponse, LoginAcknowledged, LoginPluginResponse, LoginStart},
-        server::login::{EncryptionRequest, LoginSuccess, SetCompression},
+        client::login::{EncryptionResponse, LoginStart},
+        server::login::{Disconnect, EncryptionRequest, LoginSuccess, SetCompression},
         ClientLogin, ServerLogin, ServerPacket,
     },
     Data,
@@ -31,10 +32,26 @@ impl LoginLogic {
                             ref name,
                             player_uuid,
                         }) => {
+                            if client_arc.wrong_protocol_version() {
+                                warn!("{} : Wrong protocol version", client_arc.socket_addr);
+
+                                client_arc
+                                    .send_packet(ServerPacket::from(ServerLogin::Disconnect(
+                                        Disconnect {
+                                            reason: json!({
+                                                "text": format!("§c§lWrong game version\n\n§fPlease retry with version : §a{}", client_arc.config_arc.version.name),
+                                            })
+                                            .to_string(),
+                                        },
+                                    )))
+                                    .await;
+                                client_arc.disconnect().await;
+                                return;
+                            }
+
                             client_arc
                                 .set_data(Data::new(Player::new(name.clone(), player_uuid)))
                                 .await;
-
                             client_arc
                                 .send_packet(ServerPacket::from(ServerLogin::EncryptionRequest(
                                     EncryptionRequest {
@@ -104,12 +121,7 @@ impl LoginLogic {
                                 Err(error) => error!("{} : {}", client_arc.socket_addr, error),
                             }
                         }
-                        ClientLogin::LoginPluginResponse(LoginPluginResponse {
-                            message_id,
-                            successful,
-                            ref data,
-                        }) => todo!(),
-                        ClientLogin::LoginAcknowledged(LoginAcknowledged {}) => todo!(),
+                        _ => {}
                     }
                 },
             )
