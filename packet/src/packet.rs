@@ -22,7 +22,7 @@ impl Packet {
         }
 
         let mut data_copy = data.clone();
-        let packet_length = data_copy.from_varint()? as usize;
+        let mut packet_length = data_copy.from_varint()? as usize;
 
         if data_copy.len() < packet_length {
             return Err(anyhow!("Incomplete packet"));
@@ -34,7 +34,10 @@ impl Packet {
         };
 
         packet.data = if compressed {
+            let old_data_length = data_copy.len();
             let data_lenth = data_copy.from_varint()?;
+
+            packet_length -= old_data_length - data_copy.len();
 
             if data_lenth == 0 {
                 data_copy.drain(0..packet_length).collect()
@@ -59,28 +62,30 @@ impl Packet {
         Ok(packet)
     }
 
-    pub fn into_bytes(mut self, compressed: bool, compression_threshold: usize) -> Result<Vec<u8>> {
+    pub fn into_bytes(self, compressed: bool, compression_threshold: usize) -> Result<Vec<u8>> {
         let mut buffer = vec![];
 
-        buffer.append(&mut self.id.to_varint());
-        buffer.append(&mut self.data);
+        buffer.extend(self.id.to_varint());
+        buffer.extend(self.data);
 
         let mut result_buffer = vec![];
+        let mut data_length = (buffer.len() as i32).to_varint();
 
-        if compressed && buffer.len() > compression_threshold {
-            let data_length = buffer.len();
-            let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+        if compressed {
+            if buffer.len() >= compression_threshold {
+                let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
 
-            encoder.write_all(&buffer)?;
-            buffer = encoder.finish()?;
+                encoder.write_all(&buffer)?;
+                buffer = encoder.finish()?;
+            } else {
+                data_length = vec![0];
+            }
 
-            result_buffer.append(&mut (buffer.len() as i32).to_varint());
-            result_buffer.append(&mut (data_length as i32).to_varint());
-            result_buffer.append(&mut buffer);
-        } else {
-            result_buffer.append(&mut (buffer.len() as i32).to_varint());
-            result_buffer.append(&mut buffer);
+            result_buffer.extend(((data_length.len() + buffer.len()) as i32).to_varint());
         }
+
+        result_buffer.extend(data_length);
+        result_buffer.extend(buffer);
 
         Ok(result_buffer)
     }
