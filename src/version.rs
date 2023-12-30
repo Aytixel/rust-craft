@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use async_std::{fs::File, io::ReadExt};
 use serde_json::Value;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Version {
     pub id: String,
     pub name: String,
@@ -16,13 +16,13 @@ impl Version {
     pub async fn new() -> Result<Self> {
         let mut file = File::open("./version.json")
             .await
-            .map_err(|e| anyhow!("Can't open the version file. {e}"))?;
+            .map_err(|error| anyhow!("Can't open the version file. {error}"))?;
         let mut buffer = Vec::new();
 
         file.read_to_end(&mut buffer).await?;
 
         let version_file: Value = serde_json::from_slice(&buffer)
-            .map_err(|e| anyhow!("Can't parse the version file. {e}"))?;
+            .map_err(|error| anyhow!("Can't parse the version file. {error}"))?;
 
         fn to_err<T>(option: Option<T>) -> Result<T> {
             option.ok_or_else(|| anyhow!("Wrong version file format"))
