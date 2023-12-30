@@ -24,6 +24,12 @@ impl ToByte for i8 {
     }
 }
 
+impl ToByte for u8 {
+    fn to_byte(self) -> Vec<u8> {
+        self.to_be_bytes().to_vec()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -40,6 +46,6 @@ mod tests {
 
     #[test]
     fn to_byte() {
-        assert_eq!(80.to_byte(), vec![80]);
+        assert_eq!(80i8.to_byte(), vec![80]);
     }
 }

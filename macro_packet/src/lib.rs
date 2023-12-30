@@ -1,5 +1,7 @@
 extern crate proc_macro;
 
+use std::str::FromStr;
+
 use proc_macro::{Delimiter, Span, TokenStream, TokenTree};
 use quote::{quote, ToTokens};
 use syn::{
@@ -7,7 +9,7 @@ use syn::{
     MetaList,
 };
 
-#[proc_macro_derive(DeserializePacket, attributes(variable, id))]
+#[proc_macro_derive(DeserializePacket, attributes(variable, array, id))]
 pub fn deserialize_packet(item: TokenStream) -> TokenStream {
     let item_struct = parse_macro_input!(item as ItemStruct);
     let item_struct_span = item_struct.span();
@@ -17,40 +19,111 @@ pub fn deserialize_packet(item: TokenStream) -> TokenStream {
         let mut fields_value = Vec::new();
 
         for item_struct_field in item_struct_fields.named {
-            let field_type = item_struct_field.ty.to_token_stream().to_string();
+            let field_type_tokenstream = item_struct_field.ty.to_token_stream();
+            let field_type = field_type_tokenstream.to_string();
             let mut variable = false;
 
-            for attr in item_struct_field.attrs {
-                if "#[variable]".to_string() == attr.to_token_stream().to_string() {
+            for attr in item_struct_field.attrs.iter() {
+                if attr
+                    .to_token_stream()
+                    .to_string()
+                    .starts_with("#[variable]")
+                {
                     variable = true;
                     break;
                 }
             }
 
-            fields_name.push(item_struct_field.ident);
+            let mut array_option = None;
 
-            match field_type.as_str() {
-                "bool" => fields_value.push(quote! { packet.data.from_byte()? != 0 }),
-                "i8" => fields_value.push(quote! { packet.data.from_byte()? }),
-                "u8" => fields_value.push(quote! { packet.data.from_byte()? as u8 }),
-                "i16" => fields_value.push(quote! { packet.data.from_short()? }),
-                "u16" => fields_value.push(quote! { packet.data.from_short()? as u16 }),
-                "i32" => fields_value.push(if variable {
-                    quote! { packet.data.from_varint()? }
-                } else {
-                    quote! { packet.data.from_int()? }
-                }),
-                "u32" => fields_value.push(quote! { packet.data.from_int()? as u32 }),
-                "i64" => fields_value.push(if variable {
-                    quote! { packet.data.from_varlong()? }
-                } else {
-                    quote! { packet.data.from_long()? }
-                }),
-                "u64" => fields_value.push(quote! { packet.data.from_long()? as u64 }),
-                "String" => fields_value.push(quote! { packet.data.from_packet_string()? }),
-                "Uuid" => fields_value.push(quote! { packet.data.from_uuid()? }),
-                _ => fields_value.push(quote! { Default::Default() }),
+            for attr in item_struct_field.attrs.iter() {
+                let attr_string = attr.to_token_stream().to_string();
+
+                if attr_string.starts_with("#[array") {
+                    array_option = Some(
+                        proc_macro2::TokenStream::from_str(&attr_string[8..attr_string.len() - 2])
+                            .unwrap(),
+                    );
+                    break;
+                }
             }
+
+            fn getter_from_type(field_type: &str, variable: bool) -> proc_macro2::TokenStream {
+                match field_type {
+                    "bool" => quote! { packet.data.from_byte()? != 0 },
+                    "i8" => quote! { packet.data.from_byte()? },
+                    "u8" => quote! { packet.data.from_byte()? as u8 },
+                    "i16" => quote! { packet.data.from_short()? },
+                    "u16" => quote! { packet.data.from_short()? as u16 },
+                    "i32" => {
+                        if variable {
+                            quote! { packet.data.from_varint()? }
+                        } else {
+                            quote! { packet.data.from_int()? }
+                        }
+                    }
+                    "i64" => {
+                        if variable {
+                            quote! { packet.data.from_varlong()? }
+                        } else {
+                            quote! { packet.data.from_long()? }
+                        }
+                    }
+                    "String" => quote! { packet.data.from_packet_string()? },
+                    "Uuid" => quote! { packet.data.from_uuid()? },
+                    _ => quote! {},
+                }
+            }
+
+            fields_name.push(item_struct_field.ident);
+            fields_value.push(if field_type.starts_with("Vec") {
+                let getter = getter_from_type(&field_type[6..field_type.len() - 2], variable);
+
+                if let Some(array) = array_option {
+                    quote! {
+                        {
+                            let mut array = Vec::new();
+
+                            for _ in 0..(#array as usize) {
+                                array.push(#getter);
+                            }
+
+                            array
+                        }
+                    }
+                } else {
+                    quote! {
+                        {
+                            let mut array = Vec::new();
+
+                            while !packet.data.is_empty() {
+                                array.push(#getter);
+                            }
+
+                            array
+                        }
+                    }
+                }
+            } else if field_type.starts_with("[") {
+                let field_type_split: Vec<&str> =
+                    field_type[1..field_type.len() - 1].split(" ; ").collect();
+                let getter = getter_from_type(field_type_split[0], variable);
+                let length = proc_macro2::TokenStream::from_str(field_type_split[1]).unwrap();
+
+                quote! {
+                    {
+                        let mut array: #field_type_tokenstream = Default::default();
+
+                        for i in 0..#length {
+                            array[i] = #getter;
+                        }
+
+                        array
+                    }
+                }
+            } else {
+                getter_from_type(&field_type, variable)
+            })
         }
 
         let quote = quote! {
@@ -60,8 +133,10 @@ pub fn deserialize_packet(item: TokenStream) -> TokenStream {
                 fn try_from(mut packet: packet::Packet) -> Result<Self, Self::Error> {
                     use packet::{FromByte, FromShort, FromInt, FromLong, FromString, FromUuid, FromVarInt, FromVarLong};
 
+                    #( let #fields_name = #fields_value; )*
+
                     Ok(Self {
-                        #( #fields_name: #fields_value, )*
+                        #( #fields_name, )*
                     })
                 }
             }
@@ -75,7 +150,7 @@ pub fn deserialize_packet(item: TokenStream) -> TokenStream {
     TokenStream::from(quote)
 }
 
-#[proc_macro_derive(SerializePacket, attributes(variable, id))]
+#[proc_macro_derive(SerializePacket, attributes(variable, array, id))]
 pub fn serialize_packet(item: TokenStream) -> TokenStream {
     let item_struct = parse_macro_input!(item as ItemStruct);
     let mut id = quote!(0);
@@ -102,37 +177,77 @@ pub fn serialize_packet(item: TokenStream) -> TokenStream {
             let field_type = item_struct_field.ty.to_token_stream().to_string();
             let mut variable = false;
 
-            for attr in item_struct_field.attrs {
+            for attr in item_struct_field.attrs.iter() {
                 if "#[variable]".to_string() == attr.to_token_stream().to_string() {
                     variable = true;
                     break;
                 }
             }
 
+            let mut array_option = None;
+
+            for attr in item_struct_field.attrs.iter() {
+                let attr_string = attr.to_token_stream().to_string();
+
+                if attr_string.starts_with("#[array") {
+                    array_option = Some(
+                        proc_macro2::TokenStream::from_str(&attr_string[8..attr_string.len() - 2])
+                            .unwrap(),
+                    );
+                    break;
+                }
+            }
+
             let field_name = item_struct_field.ident;
 
-            match field_type.as_str() {
-                "bool" => fields.push(quote! { packet.#field_name.to_byte() != 0 }),
-                "i8" => fields.push(quote! { packet.#field_name.to_byte() }),
-                "u8" => fields.push(quote! { (packet.#field_name as i8).to_byte() }),
-                "i16" => fields.push(quote! { packet.#field_name.to_short() }),
-                "u16" => fields.push(quote! { (packet.#field_name as i16).to_short() }),
-                "i32" => fields.push(if variable {
-                    quote! { packet.#field_name.to_varint() }
-                } else {
-                    quote! { packet.#field_name.to_int() }
-                }),
-                "u32" => fields.push(quote! { (packet.#field_name as i32).to_int() }),
-                "i64" => fields.push(if variable {
-                    quote! { packet.#field_name.to_varlong() }
-                } else {
-                    quote! { packet.#field_name.to_long() }
-                }),
-                "u64" => fields.push(quote! { (packet.#field_name as i64).to_long() }),
-                "String" => fields.push(quote! { packet.#field_name.to_packet_string() }),
-                "Uuid" => fields.push(quote! { packet.#field_name.to_uuid() }),
-                _ => fields.push(quote! { Default::Default() }),
+            fn setter_from_type(field_type: &str, variable: bool) -> proc_macro2::TokenStream {
+                match field_type {
+                    "bool" => quote! { .to_byte() != 0 },
+                    "i8" => quote! { .to_byte() },
+                    "u8" => quote! { .to_byte() },
+                    "i16" => quote! { .to_short() },
+                    "u16" => quote! { .to_short() },
+                    "i32" => {
+                        if variable {
+                            quote! { .to_varint() }
+                        } else {
+                            quote! { .to_int() }
+                        }
+                    }
+                    "i64" => {
+                        if variable {
+                            quote! { .to_varlong() }
+                        } else {
+                            quote! { .to_long() }
+                        }
+                    }
+                    "String" => quote! { .to_packet_string() },
+                    "Uuid" => quote! { .to_uuid() },
+                    _ => quote! {},
+                }
             }
+
+            fields.push(if field_type.starts_with("Vec") {
+                let setter =
+                    setter_from_type(&field_type[6..field_type.len() - 2], variable);
+
+
+                if let Some(array) = array_option {
+                    quote! { packet.#field_name[0..packet.#array as usize].iter().map(|value| value #setter).flatten().collect::<Vec<u8>>() }
+                } else {
+                    quote! { packet.#field_name.iter().map(|value| value #setter).flatten().collect::<Vec<u8>>() }
+                }
+            } else if field_type.starts_with("[") {
+                let field_type_split: Vec<&str> =
+                    field_type[1..field_type.len() - 1].split(" ; ").collect();
+                let setter = setter_from_type(field_type_split[0], variable);
+
+                quote! { packet.#field_name.iter().map(|value| value #setter).flatten().collect::<Vec<u8>>() }
+            } else {
+                let setter = setter_from_type(&field_type, variable);
+
+                quote! { packet.#field_name #setter }
+            });
         }
 
         let quote = quote! {

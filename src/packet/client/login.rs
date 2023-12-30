@@ -14,8 +14,12 @@ packet_enum! { ClientLogin
     pub struct EncryptionResponse {
         #[variable]
         pub shared_secret_length: i32,
+        #[array(shared_secret_length)]
+        pub shared_secret: Vec<u8>,
         #[variable]
-        pub verify_token_length: i32
+        pub verify_token_length: i32,
+        #[array(verify_token_length)]
+        pub verify_token: Vec<u8>,
     }
 
     #[derive(Debug, DeserializePacket)]
@@ -24,6 +28,7 @@ packet_enum! { ClientLogin
         #[variable]
         pub message_id: i32,
         pub successful: bool,
+        pub data: Vec<u8>,
     }
 
     #[derive(Debug, DeserializePacket)]

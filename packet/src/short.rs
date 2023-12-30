@@ -24,6 +24,12 @@ impl ToShort for i16 {
     }
 }
 
+impl ToShort for u16 {
+    fn to_short(self) -> Vec<u8> {
+        self.to_be_bytes().to_vec()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -39,6 +45,6 @@ mod tests {
 
     #[test]
     fn to_short() {
-        assert_eq!(18080.to_short(), vec![70, 160]);
+        assert_eq!(18080i16.to_short(), vec![70, 160]);
     }
 }

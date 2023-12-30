@@ -14,8 +14,12 @@ packet_enum! { ServerLogin
         pub server_id: String,
         #[variable]
         pub public_key_length: i32,
+        #[array(public_key_length)]
+        pub public_key: Vec<u8>,
         #[variable]
         pub verify_key_length: i32,
+        #[array(verify_key_length)]
+        pub verify_key: Vec<u8>,
     }
 
     #[derive(Debug, SerializePacket)]
@@ -40,5 +44,6 @@ packet_enum! { ServerLogin
         #[variable]
         pub message_id: i32,
         pub channel: String,
+        pub data: Vec<u8>,
     }
 }
