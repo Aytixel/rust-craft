@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::version::Version;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Config {
     pub compression_threshold: usize,
     pub timeout: Duration,

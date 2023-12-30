@@ -10,21 +10,22 @@ use async_std::{
 use log::{error, warn};
 use stopper::Stopper;
 
-use super::{Client, ClientStop, Config, EventDispatcher};
+use super::{Client, ClientStop, Config, EventDispatcher, RsaEncryptor};
 
-pub struct Server {
+pub struct Server<T: Send + Sync + 'static> {
     config_arc: Arc<Config>,
+    encryptor_arc: Arc<RsaEncryptor>,
     socket_addr: String,
-    client_hashmap_mutex: Arc<Mutex<HashMap<SocketAddr, Arc<Client>>>>,
+    client_hashmap_mutex: Arc<Mutex<HashMap<SocketAddr, Arc<Client<T>>>>>,
     disconnect_channel: (Sender<SocketAddr>, Receiver<SocketAddr>),
     disconnect_handle_option: Option<(Stopper, JoinHandle<()>)>,
     accept_handle_option: Option<(Stopper, JoinHandle<()>)>,
     pub dispatcher: EventDispatcher,
 }
 
-impl Server {
-    pub async fn new(socket_addr: String, config: Config) -> Result<Self> {
-        let client_hashmap_mutex: Arc<Mutex<HashMap<SocketAddr, Arc<Client>>>> =
+impl<T: Send + Sync + 'static> Server<T> {
+    pub async fn new(socket_addr: String, config: Config, encryptor: RsaEncryptor) -> Result<Self> {
+        let client_hashmap_mutex: Arc<Mutex<HashMap<SocketAddr, Arc<Client<T>>>>> =
             Arc::new(Mutex::new(HashMap::new()));
         let client_disconnect_channel = unbounded();
         let stopper = Stopper::new();
@@ -50,6 +51,7 @@ impl Server {
                 }),
             )),
             config_arc: Arc::new(config),
+            encryptor_arc: Arc::new(encryptor),
             socket_addr,
             client_hashmap_mutex,
             disconnect_channel: client_disconnect_channel,
@@ -65,6 +67,7 @@ impl Server {
             stopper.clone(),
             task::spawn({
                 let config_arc = self.config_arc.clone();
+                let encryptor_arc = self.encryptor_arc.clone();
                 let socket_addr = self.socket_addr.clone();
                 let client_hashmap_mutex = self.client_hashmap_mutex.clone();
                 let client_disconnect_sender = self.disconnect_channel.0.clone();
@@ -81,6 +84,7 @@ impl Server {
                                         stream,
                                         socket_addr,
                                         config_arc.clone(),
+                                        encryptor_arc.clone(),
                                         client_disconnect_sender.clone(),
                                         dispatcher.clone(),
                                     ),
@@ -112,7 +116,7 @@ impl Server {
     }
 }
 
-impl Drop for Server {
+impl<T: Send + Sync + 'static> Drop for Server<T> {
     fn drop(&mut self) {
         if let Some(disconnect_handle) = self.disconnect_handle_option.take() {
             task::block_on(async move {

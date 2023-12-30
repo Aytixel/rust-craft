@@ -7,11 +7,12 @@ use std::{
     },
 };
 
+use anyhow::Result;
 use async_std::{
     channel::Sender,
     io::{timeout, ReadExt, WriteExt},
     net::TcpStream,
-    sync::Mutex,
+    sync::{Mutex, MutexGuard},
     task::{self, JoinHandle},
 };
 use futures_lite::{
@@ -30,7 +31,7 @@ use crate::{
     },
 };
 
-use super::{Config, EventDispatcher};
+use super::{AesDecryptor, AesEncryptor, Config, EventDispatcher, RsaEncryptor};
 
 enum ClientState {
     Handshake,
@@ -52,28 +53,34 @@ impl From<u8> for ClientState {
     }
 }
 
-pub struct Client {
+pub struct Client<T: Send + Sync + 'static> {
     pub socket_addr: SocketAddr,
     pub config_arc: Arc<Config>,
+    pub encryptor_arc: Arc<RsaEncryptor>,
+    data_option_mutex: Mutex<Option<T>>,
     disconnect_sender: Sender<SocketAddr>,
     handle_option: Option<JoinHandle<()>>,
     stopper: Stopper,
     compressed_atomic: Arc<AtomicBool>,
+    aes_encryptor_option_mutex: Mutex<Option<AesEncryptor>>,
+    aes_decryptor_option_mutex: Arc<Mutex<Option<AesDecryptor>>>,
     write_stream_mutex: Mutex<WriteHalf<TcpStream>>,
 }
 
-impl Client {
+impl<T: Send + Sync + 'static> Client<T> {
     pub fn new(
         stream: TcpStream,
         socket_addr: SocketAddr,
         config_arc: Arc<Config>,
+        encryptor_arc: Arc<RsaEncryptor>,
         disconnect_sender: Sender<SocketAddr>,
         dispatcher: EventDispatcher,
     ) -> Arc<Self> {
         let barrier_arc = Arc::new(Barrier::new(2));
-        let client_arc = Arc::new_cyclic(|client_weak: &Weak<Client>| {
+        let client_arc = Arc::new_cyclic(|client_weak: &Weak<Client<T>>| {
             let (read_stream, write_stream) = split(stream);
             let stopper = Stopper::new();
+            let aes_decryptor_option_mutex = Arc::new(Mutex::new(None));
             let compressed_atomic = Arc::new(AtomicBool::new(false));
             let handle_option = Some(task::spawn(Self::read_thread(
                 barrier_arc.clone(),
@@ -81,18 +88,23 @@ impl Client {
                 stopper.clone(),
                 read_stream,
                 socket_addr,
-                compressed_atomic.clone(),
                 config_arc.clone(),
+                aes_decryptor_option_mutex.clone(),
+                compressed_atomic.clone(),
                 dispatcher,
             )));
 
             Self {
                 socket_addr,
                 config_arc,
+                encryptor_arc,
+                data_option_mutex: Mutex::new(None),
                 disconnect_sender,
                 handle_option,
                 stopper,
                 compressed_atomic,
+                aes_encryptor_option_mutex: Mutex::new(None),
+                aes_decryptor_option_mutex,
                 write_stream_mutex: Mutex::new(write_stream),
             }
         });
@@ -103,12 +115,13 @@ impl Client {
 
     async fn read_thread(
         barrier_arc: Arc<Barrier>,
-        client_weak: Weak<Client>,
+        client_weak: Weak<Client<T>>,
         stopper: Stopper,
         mut read_stream: ReadHalf<TcpStream>,
         socket_addr: SocketAddr,
-        compressed_atomic: Arc<AtomicBool>,
         config_arc: Arc<Config>,
+        aes_decryptor_option_mutex: Arc<Mutex<Option<AesDecryptor>>>,
+        compressed_atomic: Arc<AtomicBool>,
         dispatcher: EventDispatcher,
     ) {
         barrier_arc.wait();
@@ -144,6 +157,10 @@ impl Client {
                     break 'main;
                 }
             };
+
+            if let Some(aes_decryptor) = aes_decryptor_option_mutex.lock().await.as_mut() {
+                aes_decryptor.decrypt(&mut tmp_buffer[..length]);
+            }
 
             buffer.extend(&tmp_buffer[..length]);
 
@@ -275,7 +292,13 @@ impl Client {
                 self.compressed_atomic.load(Ordering::Relaxed),
                 self.config_arc.compression_threshold,
             ) {
-                Ok(buffer) => {
+                Ok(mut buffer) => {
+                    if let Some(aes_encryptor) =
+                        self.aes_encryptor_option_mutex.lock().await.as_mut()
+                    {
+                        aes_encryptor.encrypt(&mut buffer);
+                    }
+
                     if let Err(error) = self
                         .write_stream_mutex
                         .lock()
@@ -297,6 +320,23 @@ impl Client {
         };
     }
 
+    pub async fn set_data(&self, data: T) {
+        *self.data_option_mutex.lock().await = Some(data);
+    }
+
+    pub async fn data(&self) -> MutexGuard<Option<T>> {
+        self.data_option_mutex.lock().await
+    }
+
+    pub async fn enable_encryption(&self, shared_secret: &Vec<u8>) -> Result<()> {
+        let (aes_encryptor, aes_decryptor) = self.encryptor_arc.aes_from_secret(shared_secret)?;
+
+        *self.aes_encryptor_option_mutex.lock().await = Some(aes_encryptor);
+        *self.aes_decryptor_option_mutex.lock().await = Some(aes_decryptor);
+
+        Ok(())
+    }
+
     pub fn enable_compression(&self) {
         self.compressed_atomic.store(true, Ordering::Relaxed);
     }
@@ -311,7 +351,7 @@ pub(super) trait ClientStop {
     fn stop(self) -> impl Future<Output = ()> + Send;
 }
 
-impl ClientStop for Arc<Client> {
+impl<T: Send + Sync + 'static> ClientStop for Arc<Client<T>> {
     async fn stop(self) {
         if let Some(mut client) = Arc::into_inner(self) {
             client.stopper.stop();

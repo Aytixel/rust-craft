@@ -11,6 +11,7 @@ use crate::{
         server::status::{PingResponse, StatusResponse},
         ClientStatus, ServerPacket, ServerStatus,
     },
+    Data,
 };
 
 pub struct StatusLogic {}
@@ -28,7 +29,7 @@ impl StatusLogic {
         PacketEvent {
             packet_arc,
             client_arc,
-        }: PacketEvent<ClientStatus>,
+        }: PacketEvent<ClientStatus, Data>,
     ) {
         match *packet_arc.as_ref() {
             ClientStatus::StatusRequest(StatusRequest {}) => {
