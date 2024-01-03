@@ -30,6 +30,12 @@ impl ToByte for u8 {
     }
 }
 
+impl ToByte for bool {
+    fn to_byte(self) -> Vec<u8> {
+        (self as u8).to_be_bytes().to_vec()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

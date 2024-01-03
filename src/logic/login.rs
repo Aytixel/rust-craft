@@ -113,6 +113,7 @@ impl LoginLogic {
                                                     uuid: client_data.player.uuid,
                                                     username: client_data.player.name.clone(),
                                                     number_of_properties: 0,
+                                                    property: Vec::new(),
                                                 }),
                                             ))
                                             .await;

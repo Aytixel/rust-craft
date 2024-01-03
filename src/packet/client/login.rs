@@ -28,7 +28,8 @@ packet_enum! { ClientLogin
         #[variable]
         pub message_id: i32,
         pub successful: bool,
-        pub data: Vec<u8>,
+        #[option(successful)]
+        pub data: Option<Vec<u8>>,
     }
 
     #[derive(Debug, DeserializePacket)]

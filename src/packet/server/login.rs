@@ -1,6 +1,8 @@
 use packet::{packet_enum, SerializePacket};
 use uuid::Uuid;
 
+use crate::packet::r#struct::Property;
+
 packet_enum! { ServerLogin
     #[derive(Debug, SerializePacket)]
     #[id(0x00)]
@@ -29,6 +31,8 @@ packet_enum! { ServerLogin
         pub username: String,
         #[variable]
         pub number_of_properties: i32,
+        #[array(number_of_properties)]
+        pub property: Vec<Property>,
     }
 
     #[derive(Debug, SerializePacket)]
