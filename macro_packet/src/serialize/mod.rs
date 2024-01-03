@@ -50,9 +50,9 @@ fn vec_setter_from_type(
             );
 
             if let Some(array) = array {
-                quote! { #name[0..#array as usize].iter().cloned().flat_map(|value| #setter).collect::<Vec<u8>>() }
+                quote! { #name.into_iter().take(#array as usize).flat_map(|value| #setter).collect::<Vec<u8>>() }
             } else {
-                quote! { #name.iter().flat_map(|value| #setter).collect::<Vec<u8>>() }
+                quote! { #name.into_iter().flat_map(|value| #setter).collect::<Vec<u8>>() }
             }
         }
         Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Bracket => {
@@ -63,7 +63,7 @@ fn vec_setter_from_type(
                 variable,
             );
 
-            quote! { #name.iter().flat_map(|value| #setter).collect::<Vec<u8>>() }
+            quote! { #name.into_iter().flat_map(|value| #setter).collect::<Vec<u8>>() }
         }
         _ => setter_from_type(field_type, name, variable),
     }
