@@ -55,8 +55,8 @@ impl From<u8> for ClientState {
 
 pub struct Client<T: Send + Sync + 'static> {
     pub socket_addr: SocketAddr,
-    pub config_arc: Arc<Config>,
-    pub encryptor_arc: Arc<RsaEncryptor>,
+    pub config: Arc<Config>,
+    pub encryptor: Arc<RsaEncryptor>,
     data_option_mutex: Mutex<Option<T>>,
     wrong_protocol_version_atomic: Arc<AtomicBool>,
     disconnect_sender: Sender<SocketAddr>,
@@ -72,26 +72,26 @@ impl<T: Send + Sync + 'static> Client<T> {
     pub fn new(
         stream: TcpStream,
         socket_addr: SocketAddr,
-        config_arc: Arc<Config>,
-        encryptor_arc: Arc<RsaEncryptor>,
+        config: Arc<Config>,
+        encryptor: Arc<RsaEncryptor>,
         disconnect_sender: Sender<SocketAddr>,
         dispatcher: EventDispatcher,
     ) -> Arc<Self> {
-        let barrier_arc = Arc::new(Barrier::new(2));
-        let client_arc = Arc::new_cyclic(|client_weak: &Weak<Client<T>>| {
+        let barrier = Arc::new(Barrier::new(2));
+        let client = Arc::new_cyclic(|client_weak: &Weak<Client<T>>| {
             let (read_stream, write_stream) = split(stream);
             let wrong_protocol_version_atomic = Arc::new(AtomicBool::new(false));
             let stopper = Stopper::new();
             let aes_decryptor_option_mutex = Arc::new(Mutex::new(None));
             let compressed_atomic = Arc::new(AtomicBool::new(false));
             let handle_option = Some(task::spawn(Self::read_thread(
-                barrier_arc.clone(),
+                barrier.clone(),
                 client_weak.clone(),
                 wrong_protocol_version_atomic.clone(),
                 stopper.clone(),
                 read_stream,
                 socket_addr,
-                config_arc.clone(),
+                config.clone(),
                 aes_decryptor_option_mutex.clone(),
                 compressed_atomic.clone(),
                 dispatcher,
@@ -99,8 +99,8 @@ impl<T: Send + Sync + 'static> Client<T> {
 
             Self {
                 socket_addr,
-                config_arc,
-                encryptor_arc,
+                config,
+                encryptor,
                 data_option_mutex: Mutex::new(None),
                 wrong_protocol_version_atomic,
                 disconnect_sender,
@@ -113,41 +113,38 @@ impl<T: Send + Sync + 'static> Client<T> {
             }
         });
 
-        barrier_arc.wait();
-        client_arc
+        barrier.wait();
+        client
     }
 
     async fn read_thread(
-        barrier_arc: Arc<Barrier>,
+        barrier: Arc<Barrier>,
         client_weak: Weak<Client<T>>,
         wrong_protocol_version_atomic: Arc<AtomicBool>,
         stopper: Stopper,
         mut read_stream: ReadHalf<TcpStream>,
         socket_addr: SocketAddr,
-        config_arc: Arc<Config>,
+        config: Arc<Config>,
         aes_decryptor_option_mutex: Arc<Mutex<Option<AesDecryptor>>>,
         compressed_atomic: Arc<AtomicBool>,
         dispatcher: EventDispatcher,
     ) {
-        barrier_arc.wait();
+        barrier.wait();
 
-        let client_arc = client_weak.upgrade().unwrap();
+        let client = client_weak.upgrade().unwrap();
         let mut client_state = ClientState::Handshake;
         let mut buffer: Vec<u8> = Vec::new();
         let mut tmp_buffer = vec![0; 1024];
 
         'main: loop {
             let length = match stopper
-                .stop_future(timeout(
-                    config_arc.timeout,
-                    read_stream.read(&mut tmp_buffer),
-                ))
+                .stop_future(timeout(config.timeout, read_stream.read(&mut tmp_buffer)))
                 .await
             {
                 Some(Ok(0)) | None => {
                     warn!("{socket_addr} : Connection closed");
 
-                    client_arc.disconnect().await;
+                    client.disconnect().await;
                     break 'main;
                 }
                 Some(Ok(length)) => length,
@@ -158,7 +155,7 @@ impl<T: Send + Sync + 'static> Client<T> {
                         warn!("{socket_addr} : An error occurred, connection closed");
                     }
 
-                    client_arc.disconnect().await;
+                    client.disconnect().await;
                     break 'main;
                 }
             };
@@ -195,7 +192,7 @@ impl<T: Send + Sync + 'static> Client<T> {
                             client_state = ClientState::from(next_state as u8);
 
                             wrong_protocol_version_atomic.store(
-                                protocol_version != config_arc.version.protocol,
+                                protocol_version != config.version.protocol,
                                 Ordering::Relaxed,
                             );
                         }
@@ -215,7 +212,7 @@ impl<T: Send + Sync + 'static> Client<T> {
                             .status_rwlock
                             .read()
                             .await
-                            .dispatch(&PacketEvent::new(packet, client_arc.clone()))
+                            .dispatch(&PacketEvent::new(packet, client.clone()))
                             .await
                         {
                             error!("{socket_addr} : {error}");
@@ -240,7 +237,7 @@ impl<T: Send + Sync + 'static> Client<T> {
                             .login_rwlock
                             .read()
                             .await
-                            .dispatch(&PacketEvent::new(packet, client_arc.clone()))
+                            .dispatch(&PacketEvent::new(packet, client.clone()))
                             .await
                         {
                             error!("{socket_addr} : {error}");
@@ -261,7 +258,7 @@ impl<T: Send + Sync + 'static> Client<T> {
                             .configuration_rwlock
                             .read()
                             .await
-                            .dispatch(&PacketEvent::new(packet, client_arc.clone()))
+                            .dispatch(&PacketEvent::new(packet, client.clone()))
                             .await
                         {
                             error!("{socket_addr} : {error}");
@@ -282,7 +279,7 @@ impl<T: Send + Sync + 'static> Client<T> {
                             .play_rwlock
                             .read()
                             .await
-                            .dispatch(&PacketEvent::new(packet, client_arc.clone()))
+                            .dispatch(&PacketEvent::new(packet, client.clone()))
                             .await
                         {
                             error!("{socket_addr} : {error}");
@@ -297,7 +294,7 @@ impl<T: Send + Sync + 'static> Client<T> {
         match Packet::try_from(packet) {
             Ok(packet) => match packet.into_bytes(
                 self.compressed_atomic.load(Ordering::Relaxed),
-                self.config_arc.compression_threshold,
+                self.config.compression_threshold,
             ) {
                 Ok(mut buffer) => {
                     if let Some(aes_encryptor) =
@@ -340,7 +337,7 @@ impl<T: Send + Sync + 'static> Client<T> {
     }
 
     pub async fn enable_encryption(&self, shared_secret: &Vec<u8>) -> Result<()> {
-        let (aes_encryptor, aes_decryptor) = self.encryptor_arc.aes_from_secret(shared_secret)?;
+        let (aes_encryptor, aes_decryptor) = self.encryptor.aes_from_secret(shared_secret)?;
 
         *self.aes_encryptor_option_mutex.lock().await = Some(aes_encryptor);
         *self.aes_decryptor_option_mutex.lock().await = Some(aes_decryptor);

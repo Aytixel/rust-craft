@@ -25,24 +25,19 @@ impl StatusLogic {
             .await;
     }
 
-    async fn handler(
-        PacketEvent {
-            packet_arc,
-            client_arc,
-        }: PacketEvent<ClientStatus, Data>,
-    ) {
-        match *packet_arc.as_ref() {
+    async fn handler(PacketEvent { packet, client }: PacketEvent<ClientStatus, Data>) {
+        match *packet.as_ref() {
             ClientStatus::StatusRequest(StatusRequest {}) => {
-                client_arc
+                client
                     .send_packet(ServerPacket::from(ServerStatus::StatusResponse(
                         StatusResponse {
                             json_response: json!({
                                 "version": {
-                                    "name": client_arc.config_arc.version.name,
-                                    "protocol": client_arc.config_arc.version.protocol,
+                                    "name": client.config.version.name,
+                                    "protocol": client.config.version.protocol,
                                 },
                                 "players": {
-                                    "max": client_arc.config_arc.max_player.unwrap_or_default(),
+                                    "max": client.config.max_player.unwrap_or_default(),
                                     "online": 0,
                                     "sample": [],
                                 },
@@ -59,7 +54,7 @@ impl StatusLogic {
                     .await;
             }
             ClientStatus::PingRequest(PingRequest { payload }) => {
-                client_arc
+                client
                     .send_packet(ServerPacket::from(ServerStatus::PingResponse(
                         PingResponse { payload },
                     )))
