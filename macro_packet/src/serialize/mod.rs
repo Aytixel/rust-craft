@@ -14,6 +14,7 @@ fn option_setter_from_type(
     name: TokenStream,
     variable: bool,
     array: Option<TokenStream>,
+    nbt: bool,
 ) -> TokenStream {
     let mut field_type_iter = field_type.clone().into_iter();
 
@@ -25,11 +26,12 @@ fn option_setter_from_type(
                 quote!(option),
                 variable,
                 array,
+                nbt,
             );
 
             quote! { #name.map(|option| #setter).unwrap_or_default() }
         }
-        _ => vec_setter_from_type(field_type, name, variable, array),
+        _ => vec_setter_from_type(field_type, name, variable, array, nbt),
     }
 }
 
@@ -38,6 +40,7 @@ fn vec_setter_from_type(
     name: TokenStream,
     variable: bool,
     array: Option<TokenStream>,
+    nbt: bool,
 ) -> TokenStream {
     let mut field_type_iter = field_type.clone().into_iter();
 
@@ -47,6 +50,7 @@ fn vec_setter_from_type(
                 field_type_iter.skip(1).next().to_token_stream(),
                 quote!(value),
                 variable,
+                nbt,
             );
 
             if let Some(array) = array {
@@ -61,15 +65,21 @@ fn vec_setter_from_type(
                 group_stream_iter.next().to_token_stream(),
                 quote!(value),
                 variable,
+                nbt,
             );
 
             quote! { #name.into_iter().flat_map(|value| #setter).collect::<Vec<u8>>() }
         }
-        _ => setter_from_type(field_type, name, variable),
+        _ => setter_from_type(field_type, name, variable, nbt),
     }
 }
 
-fn setter_from_type(field_type: TokenStream, name: TokenStream, variable: bool) -> TokenStream {
+fn setter_from_type(
+    field_type: TokenStream,
+    name: TokenStream,
+    variable: bool,
+    nbt: bool,
+) -> TokenStream {
     match field_type.to_string().as_str() {
         "bool" => quote! { #name.to_byte() },
         "i8" => quote! { #name.to_byte() },
@@ -92,6 +102,12 @@ fn setter_from_type(field_type: TokenStream, name: TokenStream, variable: bool) 
         }
         "String" => quote! { #name.to_packet_string() },
         "Uuid" => quote! { #name.to_uuid() },
-        _ => quote! { Vec::<u8>::from(#name) },
+        _ => {
+            if nbt {
+                quote! { packet::nbt::serde::serialize::<#field_type>(&#name, None, packet::nbt::io::Flavor::Uncompressed).unwrap() }
+            } else {
+                quote! { Vec::<u8>::from(#name) }
+            }
+        }
     }
 }

@@ -8,7 +8,7 @@ use std::str::FromStr;
 
 use proc_macro2::{Delimiter, TokenStream, TokenTree};
 use quote::{quote, ToTokens};
-use syn::{Expr, Ident};
+use syn::{spanned::Spanned, Error, Expr, Ident};
 
 fn option_getter_from_type(
     field_type: TokenStream,
@@ -16,6 +16,7 @@ fn option_getter_from_type(
     variable: bool,
     array: Option<Ident>,
     option: Option<Expr>,
+    nbt: bool,
 ) -> TokenStream {
     let mut field_type_iter = field_type.clone().into_iter();
 
@@ -27,11 +28,12 @@ fn option_getter_from_type(
                 name,
                 variable,
                 array,
+                nbt,
             );
 
             quote! { if #option { Some(#getter) } else { None } }
         }
-        _ => vec_getter_from_type(field_type, name, variable, array),
+        _ => vec_getter_from_type(field_type, name, variable, array, nbt),
     }
 }
 
@@ -40,6 +42,7 @@ fn vec_getter_from_type(
     name: TokenStream,
     variable: bool,
     array: Option<Ident>,
+    nbt: bool,
 ) -> TokenStream {
     let mut field_type_iter = field_type.clone().into_iter();
 
@@ -49,6 +52,7 @@ fn vec_getter_from_type(
                 field_type_iter.skip(1).next().to_token_stream(),
                 name.clone(),
                 variable,
+                nbt,
             );
 
             if let Some(array) = array {
@@ -79,8 +83,12 @@ fn vec_getter_from_type(
         }
         Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Bracket => {
             let mut group_stream_iter = group.stream().into_iter();
-            let getter =
-                getter_from_type(group_stream_iter.next().to_token_stream(), name, variable);
+            let getter = getter_from_type(
+                group_stream_iter.next().to_token_stream(),
+                name,
+                variable,
+                nbt,
+            );
             let length = group_stream_iter.skip(1).next().to_token_stream();
 
             quote! {
@@ -95,11 +103,16 @@ fn vec_getter_from_type(
                 }
             }
         }
-        _ => getter_from_type(field_type, name, variable),
+        _ => getter_from_type(field_type, name, variable, nbt),
     }
 }
 
-fn getter_from_type(field_type: TokenStream, name: TokenStream, variable: bool) -> TokenStream {
+fn getter_from_type(
+    field_type: TokenStream,
+    name: TokenStream,
+    variable: bool,
+    nbt: bool,
+) -> TokenStream {
     match field_type.to_string().as_str() {
         "bool" => quote! { #name.from_byte()? != 0 },
         "i8" => quote! { #name.from_byte()? },
@@ -122,6 +135,13 @@ fn getter_from_type(field_type: TokenStream, name: TokenStream, variable: bool) 
         }
         "String" => quote! { #name.from_packet_string()? },
         "Uuid" => quote! { #name.from_uuid()? },
-        _ => quote! { #field_type::try_from(#name.as_mut())? },
+        _ => {
+            if nbt {
+                Error::new(name.span(), "Nbt deserialization is not implemented")
+                    .into_compile_error()
+            } else {
+                quote! { #field_type::try_from(#name.as_mut())? }
+            }
+        }
     }
 }

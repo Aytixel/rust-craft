@@ -39,22 +39,26 @@ fn get_option(attrs: &Vec<Attribute>) -> Option<Expr> {
         .flatten()
 }
 
-#[proc_macro_derive(DeserializePacket, attributes(variable, array, option, id))]
+fn is_nbt(attrs: &Vec<Attribute>) -> bool {
+    attrs.iter().any(|attr| attr.path().is_ident("nbt"))
+}
+
+#[proc_macro_derive(DeserializePacket, attributes(variable, array, option, nbt, id))]
 pub fn deserialize_packet(item: TokenStream) -> TokenStream {
     deserialize::deserialize_packet(item)
 }
 
-#[proc_macro_derive(SerializePacket, attributes(variable, array, option, id))]
+#[proc_macro_derive(SerializePacket, attributes(variable, array, option, nbt, id))]
 pub fn serialize_packet(item: TokenStream) -> TokenStream {
     serialize::serialize_packet(item)
 }
 
-#[proc_macro_derive(DeserializeStruct, attributes(variable, array, option))]
+#[proc_macro_derive(DeserializeStruct, attributes(variable, array, option, nbt))]
 pub fn deserialize_struct(item: TokenStream) -> TokenStream {
     deserialize::deserialize_struct(item)
 }
 
-#[proc_macro_derive(SerializeStruct, attributes(variable, array, option))]
+#[proc_macro_derive(SerializeStruct, attributes(variable, array, option, nbt))]
 pub fn serialize_struct(item: TokenStream) -> TokenStream {
     serialize::serialize_struct(item)
 }

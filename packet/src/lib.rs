@@ -20,3 +20,4 @@ pub use varlong::*;
 
 pub use anyhow::Error;
 pub use macro_packet::*;
+pub use quartz_nbt as nbt;

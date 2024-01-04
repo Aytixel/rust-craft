@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use quote::{quote, ToTokens};
 use syn::{parse_macro_input, spanned::Spanned, Error, Fields, ItemStruct};
 
-use crate::{deserialize::option_getter_from_type, get_array, get_option, is_variable};
+use crate::{deserialize::option_getter_from_type, get_array, get_option, is_nbt, is_variable};
 
 pub fn deserialize_packet(item: TokenStream) -> TokenStream {
     let item_struct = parse_macro_input!(item as ItemStruct);
@@ -15,6 +15,7 @@ pub fn deserialize_packet(item: TokenStream) -> TokenStream {
             let variable = is_variable(&field_name.attrs);
             let array = get_array(&field_name.attrs);
             let option = get_option(&field_name.attrs);
+            let nbt = is_nbt(&field_name.attrs);
 
             fields_ident.push(field_name.ident.unwrap());
             fields_value.push(option_getter_from_type(
@@ -23,6 +24,7 @@ pub fn deserialize_packet(item: TokenStream) -> TokenStream {
                 variable,
                 array,
                 option,
+                nbt,
             ));
         }
 
