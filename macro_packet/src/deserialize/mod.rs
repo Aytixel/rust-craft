@@ -122,6 +122,6 @@ fn getter_from_type(field_type: TokenStream, name: TokenStream, variable: bool) 
         }
         "String" => quote! { #name.from_packet_string()? },
         "Uuid" => quote! { #name.from_uuid()? },
-        _ => quote! { #field_type::try_from(&mut #name)? },
+        _ => quote! { #field_type::try_from(#name.as_mut())? },
     }
 }
