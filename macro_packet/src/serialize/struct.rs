@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use quote::{quote, ToTokens};
 use syn::{parse_macro_input, spanned::Spanned, Error, Fields, ItemStruct};
 
-use crate::{get_array, is_nbt, is_variable, serialize::option_setter_from_type};
+use crate::{is_nbt, is_variable, serialize::option_setter_from_type};
 
 pub fn serialize_struct(item: TokenStream) -> TokenStream {
     let item_struct = parse_macro_input!(item as ItemStruct);
@@ -13,14 +13,12 @@ pub fn serialize_struct(item: TokenStream) -> TokenStream {
             let field_type = field_name.ty.to_token_stream();
             let field_ident = field_name.ident.unwrap();
             let variable = is_variable(&field_name.attrs);
-            let array = get_array(&field_name.attrs);
             let nbt = is_nbt(&field_name.attrs);
 
             fields.push(option_setter_from_type(
                 field_type,
                 quote! { packet.#field_ident },
                 variable,
-                array.map(|array| quote!(packet.#array)),
                 nbt,
             ));
         }

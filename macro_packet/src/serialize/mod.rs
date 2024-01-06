@@ -13,7 +13,6 @@ fn option_setter_from_type(
     field_type: TokenStream,
     name: TokenStream,
     variable: bool,
-    array: Option<TokenStream>,
     nbt: bool,
 ) -> TokenStream {
     let mut field_type_iter = field_type.clone().into_iter();
@@ -25,13 +24,12 @@ fn option_setter_from_type(
                 TokenStream::from_str(&field_type[1..field_type.len() - 1]).unwrap(),
                 quote!(option),
                 variable,
-                array,
                 nbt,
             );
 
             quote! { #name.map(|option| #setter).unwrap_or_default() }
         }
-        _ => vec_setter_from_type(field_type, name, variable, array, nbt),
+        _ => vec_setter_from_type(field_type, name, variable, nbt),
     }
 }
 
@@ -39,7 +37,6 @@ fn vec_setter_from_type(
     field_type: TokenStream,
     name: TokenStream,
     variable: bool,
-    array: Option<TokenStream>,
     nbt: bool,
 ) -> TokenStream {
     let mut field_type_iter = field_type.clone().into_iter();
@@ -53,11 +50,7 @@ fn vec_setter_from_type(
                 nbt,
             );
 
-            if let Some(array) = array {
-                quote! { #name.into_iter().take(#array as usize).flat_map(|value| #setter).collect::<Vec<u8>>() }
-            } else {
-                quote! { #name.into_iter().flat_map(|value| #setter).collect::<Vec<u8>>() }
-            }
+            quote! { #name.into_iter().flat_map(|value| #setter).collect::<Vec<u8>>() }
         }
         Some(TokenTree::Group(group)) if group.delimiter() == Delimiter::Bracket => {
             let mut group_stream_iter = group.stream().into_iter();
