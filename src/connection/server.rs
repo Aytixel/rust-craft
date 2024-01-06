@@ -10,22 +10,22 @@ use async_std::{
 use log::{error, warn};
 use stopper::Stopper;
 
-use super::{Client, ClientStop, Config, EventDispatcher, RsaEncryptor};
+use super::{Client, ClientStop, Config, EventDispatcherList, RsaEncryptor};
 
 pub struct Server<T: Send + Sync + 'static> {
     config: Arc<Config>,
     encryptor: Arc<RsaEncryptor>,
     socket_addr: String,
-    client_hashmap_mutex: Arc<Mutex<HashMap<SocketAddr, Arc<Client<T>>>>>,
+    client_hashmap: Arc<Mutex<HashMap<SocketAddr, Arc<Client<T>>>>>,
     disconnect_channel: (Sender<SocketAddr>, Receiver<SocketAddr>),
     disconnect_handle_option: Option<(Stopper, JoinHandle<()>)>,
     accept_handle_option: Option<(Stopper, JoinHandle<()>)>,
-    pub dispatcher: EventDispatcher,
+    pub dispatcher: EventDispatcherList,
 }
 
 impl<T: Send + Sync + 'static> Server<T> {
     pub async fn new(socket_addr: String, config: Config, encryptor: RsaEncryptor) -> Result<Self> {
-        let client_hashmap_mutex: Arc<Mutex<HashMap<SocketAddr, Arc<Client<T>>>>> =
+        let client_hashmap: Arc<Mutex<HashMap<SocketAddr, Arc<Client<T>>>>> =
             Arc::new(Mutex::new(HashMap::new()));
         let client_disconnect_channel = unbounded();
         let stopper = Stopper::new();
@@ -34,16 +34,14 @@ impl<T: Send + Sync + 'static> Server<T> {
             disconnect_handle_option: Some((
                 stopper.clone(),
                 task::spawn({
-                    let client_hashmap_mutex = client_hashmap_mutex.clone();
+                    let client_hashmap = client_hashmap.clone();
                     let client_disconnect_receiver = client_disconnect_channel.1.clone();
 
                     async move {
                         while let Some(Ok(socket_addr)) =
                             stopper.stop_future(client_disconnect_receiver.recv()).await
                         {
-                            if let Some(client) =
-                                client_hashmap_mutex.lock().await.remove(&socket_addr)
-                            {
+                            if let Some(client) = client_hashmap.lock().await.remove(&socket_addr) {
                                 client.stop().await;
                             }
                         }
@@ -53,10 +51,10 @@ impl<T: Send + Sync + 'static> Server<T> {
             config: Arc::new(config),
             encryptor: Arc::new(encryptor),
             socket_addr,
-            client_hashmap_mutex,
+            client_hashmap,
             disconnect_channel: client_disconnect_channel,
             accept_handle_option: None,
-            dispatcher: EventDispatcher::default(),
+            dispatcher: EventDispatcherList::default(),
         })
     }
 
@@ -69,7 +67,7 @@ impl<T: Send + Sync + 'static> Server<T> {
                 let config = self.config.clone();
                 let encryptor = self.encryptor.clone();
                 let socket_addr = self.socket_addr.clone();
-                let client_hashmap_mutex = self.client_hashmap_mutex.clone();
+                let client_hashmap = self.client_hashmap.clone();
                 let client_disconnect_sender = self.disconnect_channel.0.clone();
                 let dispatcher = self.dispatcher.clone();
                 let listener = TcpListener::bind(socket_addr).await?;
@@ -78,7 +76,7 @@ impl<T: Send + Sync + 'static> Server<T> {
                     while let Some(connection) = stopper.stop_future(listener.accept()).await {
                         match connection {
                             Ok((stream, socket_addr)) => {
-                                client_hashmap_mutex.lock().await.insert(
+                                client_hashmap.lock().await.insert(
                                     socket_addr,
                                     Client::new(
                                         stream,
@@ -110,7 +108,7 @@ impl<T: Send + Sync + 'static> Server<T> {
     }
 
     pub async fn disconnect(&mut self) {
-        for (_, client) in self.client_hashmap_mutex.lock().await.drain() {
+        for (_, client) in self.client_hashmap.lock().await.drain() {
             client.stop().await;
         }
     }

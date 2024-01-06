@@ -28,10 +28,12 @@ impl<T, U: Send + Sync + 'static> Clone for PacketEvent<T, U> {
 
 impl<T, U: Send + Sync + 'static> Event for PacketEvent<T, U> {}
 
+pub type EventDispatcher = Arc<RwLock<AsyncDispatcher>>;
+
 #[derive(Clone, Default)]
-pub struct EventDispatcher {
-    pub status_rwlock: Arc<RwLock<AsyncDispatcher>>,
-    pub login_rwlock: Arc<RwLock<AsyncDispatcher>>,
-    pub configuration_rwlock: Arc<RwLock<AsyncDispatcher>>,
-    pub play_rwlock: Arc<RwLock<AsyncDispatcher>>,
+pub struct EventDispatcherList {
+    pub status: EventDispatcher,
+    pub login: EventDispatcher,
+    pub configuration: EventDispatcher,
+    pub play: EventDispatcher,
 }

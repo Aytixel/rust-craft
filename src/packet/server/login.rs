@@ -1,7 +1,7 @@
 use packet::{packet_enum, SerializePacket};
 use uuid::Uuid;
 
-use crate::packet::r#struct::Property;
+use crate::r#struct::Property;
 
 packet_enum! { ServerLogin
     #[derive(Debug, SerializePacket)]

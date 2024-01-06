@@ -31,7 +31,7 @@ use crate::{
     },
 };
 
-use super::{AesDecryptor, AesEncryptor, Config, EventDispatcher, RsaEncryptor};
+use super::{AesDecryptor, AesEncryptor, Config, EventDispatcherList, RsaEncryptor};
 
 enum ClientState {
     Handshake,
@@ -57,15 +57,15 @@ pub struct Client<T: Send + Sync + 'static> {
     pub socket_addr: SocketAddr,
     pub config: Arc<Config>,
     pub encryptor: Arc<RsaEncryptor>,
-    data_option_mutex: Mutex<Option<T>>,
-    wrong_protocol_version_atomic: Arc<AtomicBool>,
+    data_option: Mutex<Option<T>>,
+    wrong_protocol_version: Arc<AtomicBool>,
     disconnect_sender: Sender<SocketAddr>,
     handle_option: Option<JoinHandle<()>>,
     stopper: Stopper,
-    compressed_atomic: Arc<AtomicBool>,
-    aes_encryptor_option_mutex: Mutex<Option<AesEncryptor>>,
-    aes_decryptor_option_mutex: Arc<Mutex<Option<AesDecryptor>>>,
-    write_stream_mutex: Mutex<WriteHalf<TcpStream>>,
+    compressed: Arc<AtomicBool>,
+    aes_encryptor_option: Mutex<Option<AesEncryptor>>,
+    aes_decryptor_option: Arc<Mutex<Option<AesDecryptor>>>,
+    write_stream: Mutex<WriteHalf<TcpStream>>,
 }
 
 impl<T: Send + Sync + 'static> Client<T> {
@@ -75,25 +75,25 @@ impl<T: Send + Sync + 'static> Client<T> {
         config: Arc<Config>,
         encryptor: Arc<RsaEncryptor>,
         disconnect_sender: Sender<SocketAddr>,
-        dispatcher: EventDispatcher,
+        dispatcher: EventDispatcherList,
     ) -> Arc<Self> {
         let barrier = Arc::new(Barrier::new(2));
         let client = Arc::new_cyclic(|client_weak: &Weak<Client<T>>| {
             let (read_stream, write_stream) = split(stream);
-            let wrong_protocol_version_atomic = Arc::new(AtomicBool::new(false));
+            let wrong_protocol_version = Arc::new(AtomicBool::new(false));
             let stopper = Stopper::new();
-            let aes_decryptor_option_mutex = Arc::new(Mutex::new(None));
-            let compressed_atomic = Arc::new(AtomicBool::new(false));
+            let aes_decryptor_option = Arc::new(Mutex::new(None));
+            let compressed = Arc::new(AtomicBool::new(false));
             let handle_option = Some(task::spawn(Self::read_thread(
                 barrier.clone(),
                 client_weak.clone(),
-                wrong_protocol_version_atomic.clone(),
+                wrong_protocol_version.clone(),
                 stopper.clone(),
                 read_stream,
                 socket_addr,
                 config.clone(),
-                aes_decryptor_option_mutex.clone(),
-                compressed_atomic.clone(),
+                aes_decryptor_option.clone(),
+                compressed.clone(),
                 dispatcher,
             )));
 
@@ -101,15 +101,15 @@ impl<T: Send + Sync + 'static> Client<T> {
                 socket_addr,
                 config,
                 encryptor,
-                data_option_mutex: Mutex::new(None),
-                wrong_protocol_version_atomic,
+                data_option: Mutex::new(None),
+                wrong_protocol_version,
                 disconnect_sender,
                 handle_option,
                 stopper,
-                compressed_atomic,
-                aes_encryptor_option_mutex: Mutex::new(None),
-                aes_decryptor_option_mutex,
-                write_stream_mutex: Mutex::new(write_stream),
+                compressed,
+                aes_encryptor_option: Mutex::new(None),
+                aes_decryptor_option,
+                write_stream: Mutex::new(write_stream),
             }
         });
 
@@ -120,14 +120,14 @@ impl<T: Send + Sync + 'static> Client<T> {
     async fn read_thread(
         barrier: Arc<Barrier>,
         client_weak: Weak<Client<T>>,
-        wrong_protocol_version_atomic: Arc<AtomicBool>,
+        wrong_protocol_version: Arc<AtomicBool>,
         stopper: Stopper,
         mut read_stream: ReadHalf<TcpStream>,
         socket_addr: SocketAddr,
         config: Arc<Config>,
-        aes_decryptor_option_mutex: Arc<Mutex<Option<AesDecryptor>>>,
-        compressed_atomic: Arc<AtomicBool>,
-        dispatcher: EventDispatcher,
+        aes_decryptor_option: Arc<Mutex<Option<AesDecryptor>>>,
+        compressed: Arc<AtomicBool>,
+        dispatcher: EventDispatcherList,
     ) {
         barrier.wait();
 
@@ -160,7 +160,7 @@ impl<T: Send + Sync + 'static> Client<T> {
                 }
             };
 
-            if let Some(aes_decryptor) = aes_decryptor_option_mutex.lock().await.as_mut() {
+            if let Some(aes_decryptor) = aes_decryptor_option.lock().await.as_mut() {
                 aes_decryptor.decrypt(&mut tmp_buffer[..length]);
             }
 
@@ -168,7 +168,7 @@ impl<T: Send + Sync + 'static> Client<T> {
 
             // parse packets from buffer
             while let Ok(packet) =
-                Packet::from_bytes(&mut buffer, compressed_atomic.load(Ordering::Relaxed))
+                Packet::from_bytes(&mut buffer, compressed.load(Ordering::Relaxed))
             {
                 match client_state {
                     ClientState::Handshake => {
@@ -191,7 +191,7 @@ impl<T: Send + Sync + 'static> Client<T> {
                         {
                             client_state = ClientState::from(next_state as u8);
 
-                            wrong_protocol_version_atomic.store(
+                            wrong_protocol_version.store(
                                 protocol_version != config.version.protocol,
                                 Ordering::Relaxed,
                             );
@@ -209,7 +209,7 @@ impl<T: Send + Sync + 'static> Client<T> {
                         debug!("{socket_addr} : {:?}", packet);
 
                         if let Err(error) = dispatcher
-                            .status_rwlock
+                            .status
                             .read()
                             .await
                             .dispatch(&PacketEvent::new(packet, client.clone()))
@@ -234,7 +234,7 @@ impl<T: Send + Sync + 'static> Client<T> {
                         }
 
                         if let Err(error) = dispatcher
-                            .login_rwlock
+                            .login
                             .read()
                             .await
                             .dispatch(&PacketEvent::new(packet, client.clone()))
@@ -255,7 +255,7 @@ impl<T: Send + Sync + 'static> Client<T> {
                         debug!("{socket_addr} : {:?}", packet);
 
                         if let Err(error) = dispatcher
-                            .configuration_rwlock
+                            .configuration
                             .read()
                             .await
                             .dispatch(&PacketEvent::new(packet, client.clone()))
@@ -276,7 +276,7 @@ impl<T: Send + Sync + 'static> Client<T> {
                         debug!("{socket_addr} : {:?}", packet);
 
                         if let Err(error) = dispatcher
-                            .play_rwlock
+                            .play
                             .read()
                             .await
                             .dispatch(&PacketEvent::new(packet, client.clone()))
@@ -293,23 +293,15 @@ impl<T: Send + Sync + 'static> Client<T> {
     pub async fn send_packet(&self, packet: ServerPacket) {
         match Packet::try_from(packet) {
             Ok(packet) => match packet.into_bytes(
-                self.compressed_atomic.load(Ordering::Relaxed),
+                self.compressed.load(Ordering::Relaxed),
                 self.config.compression_threshold,
             ) {
                 Ok(mut buffer) => {
-                    if let Some(aes_encryptor) =
-                        self.aes_encryptor_option_mutex.lock().await.as_mut()
-                    {
+                    if let Some(aes_encryptor) = self.aes_encryptor_option.lock().await.as_mut() {
                         aes_encryptor.encrypt(&mut buffer);
                     }
 
-                    if let Err(error) = self
-                        .write_stream_mutex
-                        .lock()
-                        .await
-                        .write_all(&buffer)
-                        .await
-                    {
+                    if let Err(error) = self.write_stream.lock().await.write_all(&buffer).await {
                         error!("{} : Sending a packet : {error}", self.socket_addr);
                     }
                 }
@@ -325,28 +317,28 @@ impl<T: Send + Sync + 'static> Client<T> {
     }
 
     pub fn wrong_protocol_version(&self) -> bool {
-        self.wrong_protocol_version_atomic.load(Ordering::Relaxed)
+        self.wrong_protocol_version.load(Ordering::Relaxed)
     }
 
     pub async fn set_data(&self, data: T) {
-        *self.data_option_mutex.lock().await = Some(data);
+        *self.data_option.lock().await = Some(data);
     }
 
     pub async fn data(&self) -> MutexGuard<Option<T>> {
-        self.data_option_mutex.lock().await
+        self.data_option.lock().await
     }
 
     pub async fn enable_encryption(&self, shared_secret: &Vec<u8>) -> Result<()> {
         let (aes_encryptor, aes_decryptor) = self.encryptor.aes_from_secret(shared_secret)?;
 
-        *self.aes_encryptor_option_mutex.lock().await = Some(aes_encryptor);
-        *self.aes_decryptor_option_mutex.lock().await = Some(aes_decryptor);
+        *self.aes_encryptor_option.lock().await = Some(aes_encryptor);
+        *self.aes_decryptor_option.lock().await = Some(aes_decryptor);
 
         Ok(())
     }
 
     pub fn enable_compression(&self) {
-        self.compressed_atomic.store(true, Ordering::Relaxed);
+        self.compressed.store(true, Ordering::Relaxed);
     }
 
     pub async fn disconnect(&self) {

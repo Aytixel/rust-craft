@@ -1,6 +1,5 @@
 pub mod client;
 pub mod server;
-pub mod r#struct;
 
 pub use client::{ClientConfiguration, ClientHandshake, ClientLogin, ClientPlay, ClientStatus};
 pub use server::{ServerConfiguration, ServerLogin, ServerPlay, ServerStatus};

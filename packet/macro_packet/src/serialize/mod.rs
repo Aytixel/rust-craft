@@ -97,7 +97,7 @@ fn setter_from_type(
         "Uuid" => quote! { #name.to_uuid() },
         _ => {
             if nbt {
-                quote! { packet::nbt::serde::serialize::<#field_type>(&#name, None, packet::nbt::io::Flavor::Uncompressed).unwrap() }
+                quote! { packet::nbt::serde::serialize::<#field_type>(&#name, packet::nbt::serde::RootName::Ignore, packet::nbt::io::Flavor::Uncompressed).unwrap() }
             } else {
                 quote! { Vec::<u8>::from(#name) }
             }

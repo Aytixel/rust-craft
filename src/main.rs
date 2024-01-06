@@ -1,6 +1,7 @@
 pub mod connection;
 pub mod logic;
 pub mod packet;
+pub mod r#struct;
 pub mod version;
 
 use anyhow::Result;
@@ -9,7 +10,7 @@ use log::info;
 
 use crate::{
     connection::{Config, RsaEncryptor, Server},
-    logic::{Data, LoginLogic, StatusLogic},
+    logic::{ConfigurationLogic, Data, LoginLogic, StatusLogic},
     version::Version,
 };
 
@@ -25,8 +26,9 @@ async fn main() -> Result<()> {
 
     let mut server = Server::<Data>::new("0.0.0.0:25565".to_string(), config, encryptor).await?;
 
-    StatusLogic::init(server.dispatcher.status_rwlock.clone()).await;
-    LoginLogic::init(server.dispatcher.login_rwlock.clone()).await;
+    StatusLogic::init(server.dispatcher.status.clone()).await;
+    LoginLogic::init(server.dispatcher.login.clone()).await;
+    ConfigurationLogic::init(server.dispatcher.configuration.clone()).await;
 
     server.start().await?;
 

@@ -1,11 +1,7 @@
-use std::sync::Arc;
-
-use async_std::sync::RwLock;
-use epicenter::AsyncDispatcher;
 use serde_json::json;
 
 use crate::{
-    connection::PacketEvent,
+    connection::{EventDispatcher, PacketEvent},
     packet::{
         client::status::{PingRequest, StatusRequest},
         server::status::{PingResponse, StatusResponse},
@@ -17,12 +13,8 @@ use crate::{
 pub struct StatusLogic {}
 
 impl StatusLogic {
-    pub async fn init(dispatcher_status_rwlock: Arc<RwLock<AsyncDispatcher>>) {
-        dispatcher_status_rwlock
-            .write()
-            .await
-            .listen(Self::handler)
-            .await;
+    pub async fn init(dispatcher_status: EventDispatcher) {
+        dispatcher_status.write().await.listen(Self::handler).await;
     }
 
     async fn handler(PacketEvent { packet, client }: PacketEvent<ClientStatus, Data>) {

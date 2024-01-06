@@ -1,10 +1,8 @@
-use async_std::sync::{Arc, RwLock};
-use epicenter::AsyncDispatcher;
 use log::{error, warn};
 use serde_json::json;
 
 use crate::{
-    connection::PacketEvent,
+    connection::{EventDispatcher, PacketEvent},
     packet::{
         client::login::{EncryptionResponse, LoginStart},
         server::login::{Disconnect, EncryptionRequest, LoginSuccess, SetCompression},
@@ -18,8 +16,8 @@ use super::Player;
 pub struct LoginLogic {}
 
 impl LoginLogic {
-    pub async fn init(dispatcher_login_rwlock: Arc<RwLock<AsyncDispatcher>>) {
-        dispatcher_login_rwlock
+    pub async fn init(dispatcher_login: EventDispatcher) {
+        dispatcher_login
             .write()
             .await
             .listen(
