@@ -1,0 +1,3 @@
+[submodule "packet/quartz_nbt"]
+	path = packet/quartz_nbt
+	url = https://github.com/Aytixel/quartz_nbt

@@ -9,6 +9,6 @@ edition = "2021"
 flate2 = "1.0.28"
 anyhow = "1.0.77"
 uuid = { version = "1.6.1", features = ["v3"] }
-quartz_nbt = { version = "0.2.8", features = ["serde"] }
 
-macro_packet = { path = "../macro_packet" }
+quartz_nbt = { path = "./quartz_nbt", features = ["serde"] }
+macro_packet = { path = "./macro_packet" }
