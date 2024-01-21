@@ -28,6 +28,6 @@ impl TryFrom<&mut Vec<u8>> for DiplayedSkinParts {
 
     fn try_from(value: &mut Vec<u8>) -> Result<Self, Self::Error> {
         Self::from_bits(value.from_byte()? as u8)
-            .ok_or(anyhow!("Can't deserialize displayed skin parts flags"))
+            .ok_or(anyhow!("Can't deserialize Displayed Skin Parts Flags"))
     }
 }

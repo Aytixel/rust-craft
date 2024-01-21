@@ -1,7 +1,7 @@
 use packet::{packet_enum, DeserializePacket};
 use uuid::Uuid;
 
-use crate::r#struct::DiplayedSkinParts;
+use crate::r#struct::{ChatMode, DiplayedSkinParts, MainHand};
 
 packet_enum! { ClientConfiguration
     #[derive(Debug, DeserializePacket)]
@@ -9,12 +9,10 @@ packet_enum! { ClientConfiguration
     pub struct ClientInformation {
         pub locale: String,
         pub view_distance: i8,
-        #[variable]
-        pub chat_mode: i32,
+        pub chat_mode: ChatMode,
         pub chat_colors: bool,
         pub displayed_skin_parts: DiplayedSkinParts,
-        #[variable]
-        pub main_hand: i32,
+        pub main_hand: MainHand,
         pub enable_text_filtering: bool,
         pub allow_server_listing: bool,
     }
