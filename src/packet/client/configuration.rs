@@ -1,6 +1,8 @@
 use packet::{packet_enum, DeserializePacket};
 use uuid::Uuid;
 
+use crate::r#struct::DiplayedSkinParts;
+
 packet_enum! { ClientConfiguration
     #[derive(Debug, DeserializePacket)]
     #[id(0x00)]
@@ -10,7 +12,7 @@ packet_enum! { ClientConfiguration
         #[variable]
         pub chat_mode: i32,
         pub chat_colors: bool,
-        pub displayed_skin_parts: u8,
+        pub displayed_skin_parts: DiplayedSkinParts,
         #[variable]
         pub main_hand: i32,
         pub enable_text_filtering: bool,
