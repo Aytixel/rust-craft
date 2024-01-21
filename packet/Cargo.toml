@@ -7,8 +7,8 @@ edition = "2021"
 
 [dependencies]
 flate2 = "1.0.28"
-anyhow = "1.0.77"
-uuid = { version = "1.6.1", features = ["v3"] }
+anyhow = "1.0.79"
+uuid = { version = "1.7.0", features = ["v3"] }
 
 quartz_nbt = { path = "./quartz_nbt", features = ["serde"] }
 macro_packet = { path = "./macro_packet" }
