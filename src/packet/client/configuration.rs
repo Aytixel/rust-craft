@@ -1,7 +1,7 @@
 use packet::{packet_enum, DeserializePacket};
 use uuid::Uuid;
 
-use crate::r#struct::{ChatMode, DiplayedSkinParts, MainHand};
+use crate::r#struct::{ChatMode, DiplayedSkinParts, MainHand, ResourcePackResult};
 
 packet_enum! { ClientConfiguration
     #[derive(Debug, DeserializePacket)]
@@ -44,7 +44,6 @@ packet_enum! { ClientConfiguration
     #[id(0x05)]
     pub struct ResourcePackResponse {
         pub uuid: Uuid,
-        #[variable]
-        pub result: i32,
+        pub result: ResourcePackResult,
     }
 }
