@@ -1,5 +1,7 @@
 use packet::{packet_enum, DeserializePacket};
 
+use crate::r#struct::NextState;
+
 packet_enum! { ClientHandshake
     #[derive(Debug, DeserializePacket)]
     #[id(0x00)]
@@ -8,7 +10,6 @@ packet_enum! { ClientHandshake
         pub protocol_version: i32,
         pub address: String,
         pub port: u16,
-        #[variable]
-        pub next_state: i32,
+        pub next_state: NextState,
     }
 }

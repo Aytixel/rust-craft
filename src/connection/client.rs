@@ -29,6 +29,7 @@ use crate::{
         client::handshake::Handshake, ClientConfiguration, ClientHandshake, ClientLogin,
         ClientPlay, ClientStatus, ServerPacket,
     },
+    r#struct::NextState,
 };
 
 use super::{AesDecryptor, AesEncryptor, Config, EventDispatcherList, RsaEncryptor};
@@ -41,14 +42,11 @@ enum ClientState {
     Play,
 }
 
-impl From<u8> for ClientState {
-    fn from(value: u8) -> Self {
+impl From<NextState> for ClientState {
+    fn from(value: NextState) -> Self {
         match value {
-            0 => Self::Handshake,
-            1 => Self::Status,
-            2 => Self::Login,
-            3 => Self::Configuration,
-            _ => Self::Play,
+            NextState::Status => Self::Status,
+            NextState::Login => Self::Login,
         }
     }
 }
@@ -189,7 +187,7 @@ impl<T: Send + Sync + 'static> Client<T> {
                             ..
                         }) = packet
                         {
-                            client_state = ClientState::from(next_state as u8);
+                            client_state = ClientState::from(next_state);
 
                             wrong_protocol_version.store(
                                 protocol_version != config.version.protocol,
@@ -253,6 +251,10 @@ impl<T: Send + Sync + 'static> Client<T> {
                         };
 
                         debug!("{socket_addr} : {:?}", packet);
+
+                        if let ClientConfiguration::FinishConfiguration(_) = packet {
+                            client_state = ClientState::Play;
+                        }
 
                         if let Err(error) = dispatcher
                             .configuration
