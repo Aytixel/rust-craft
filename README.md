@@ -1,2 +1,3 @@
 # RustCraft
- Minecraft server entirely in Rust
+
+Minecraft server entirely in Rust
