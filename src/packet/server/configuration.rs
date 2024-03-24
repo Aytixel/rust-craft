@@ -1,8 +1,7 @@
-use mc_chat::ChatComponent;
 use packet::{packet_enum, SerializePacket};
 use uuid::Uuid;
 
-use crate::r#struct::{RegistryCodec, Tags};
+use crate::r#struct::{RegistryCodec, Tags, TextComponent};
 
 packet_enum! { ServerConfiguration
     #[derive(Debug, SerializePacket)]
@@ -16,7 +15,7 @@ packet_enum! { ServerConfiguration
     #[id(0x01)]
     pub struct Disconnect {
         #[nbt]
-        pub reason: ChatComponent,
+        pub reason: TextComponent,
     }
 
     #[derive(Debug, SerializePacket)]
@@ -60,7 +59,7 @@ packet_enum! { ServerConfiguration
         pub has_prompt_message: bool,
         #[option(has_prompt_message)]
         #[nbt]
-        pub prompt_message: Option<ChatComponent>
+        pub prompt_message: Option<TextComponent>
     }
 
     #[derive(Debug, SerializePacket)]

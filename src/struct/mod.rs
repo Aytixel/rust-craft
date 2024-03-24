@@ -6,6 +6,7 @@ mod property;
 mod registry;
 mod resource_pack_result;
 mod tag;
+mod text_component;
 
 pub use chat_mode::*;
 pub use diplayed_skin_parts::*;
@@ -15,3 +16,4 @@ pub use property::*;
 pub use registry::*;
 pub use resource_pack_result::*;
 pub use tag::*;
+pub use text_component::*;

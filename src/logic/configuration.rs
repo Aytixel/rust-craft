@@ -1,14 +1,15 @@
-use mc_chat::{ChatComponent, ComponentStyle};
+use async_std::{fs::File, io::ReadExt};
+use serde::Serialize;
+use serde_json::to_string;
 
 use crate::{
-    connection::{ PacketEvent, EventDispatcher},
+    connection::{ EventDispatcher, PacketEvent},
     packet::{
         client::configuration::{
             ClientInformation, FinishConfiguration, KeepAlive, PluginMessage, Pong,
             ResourcePackResponse,
-        },
-        ClientConfiguration, ServerConfiguration, ServerPacket, server::configuration::Disconnect,
-    },
+        }, server::configuration::Disconnect, ClientConfiguration, ServerConfiguration, ServerPacket
+    }, r#struct::{RegistryCodec, TextComponent, TextStyle},
 };
 
 use super::Data;
@@ -30,10 +31,20 @@ impl ConfigurationLogic {
                         enable_text_filtering,
                         allow_server_listing,
                     }) => {
+                        let mut file = File::open("./registry_data.json")
+                            .await.unwrap();
+                        let mut buffer = Vec::new();
+                
+                        file.read_to_end(&mut buffer).await.unwrap();
+                
+                        let registery: RegistryCodec = serde_json::from_slice(&buffer).unwrap();
+
+                        println!("{:#?}", registery.registries);
+
                         client
                             .send_packet(ServerPacket::from(ServerConfiguration::Disconnect(
                                 Disconnect {
-                                    reason: ChatComponent::from_text("test", ComponentStyle::v1_16().bold(true)),
+                                    reason: TextComponent::from_text("test", TextStyle::new().bold(true)),
                                 },
                             )))
                             .await;
